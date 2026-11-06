@@ -1,0 +1,170 @@
+{
+  "sourceLanguage": "pt-BR",
+  "strings": {
+    "NSAccessibilityUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz needs accessibility access to insert transcribed text into any application."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz benötigt Zugriff auf die Bedienungshilfen, um transkribierten Text in beliebige Apps einzufügen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz necesita acceso a Accesibilidad para insertar texto transcrito en cualquier aplicación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz a besoin de l’accès à l’accessibilité pour insérer le texte transcrit dans n’importe quelle app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz が文字起こししたテキストを任意のアプリに挿入するには、アクセシビリティへのアクセスが必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz 需要辅助功能权限，才能将转录文本插入任意 App。"
+          }
+        }
+      }
+    },
+    "NSAppleEventsUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz needs permission to insert text into other applications."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz benötigt die Erlaubnis, Text in andere Apps einzufügen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz necesita permiso para insertar texto en otras aplicaciones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz a besoin de l’autorisation d’insérer du texte dans d’autres apps."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz が他のアプリにテキストを挿入するには許可が必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz 需要获得权限，才能将文本插入其他 App。"
+          }
+        }
+      }
+    },
+    "NSCalendarsFullAccessUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz reads your calendar events locally on your Mac to suggest starting a recording when a meeting is scheduled. No calendar data leaves your Mac."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz liest deine Kalendertermine lokal auf deinem Mac, um bei einer geplanten Besprechung den Start einer Aufnahme vorzuschlagen. Kalenderdaten verlassen deinen Mac nicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz lee los eventos de tu calendario localmente en tu Mac para sugerir iniciar una grabación cuando haya una reunión programada. Ningún dato del calendario sale de tu Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz lit les événements de votre calendrier localement sur votre Mac afin de suggérer le démarrage d’un enregistrement lorsqu’une réunion est planifiée. Aucune donnée du calendrier ne quitte votre Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz は Mac 上でカレンダーの予定をローカルに読み取り、ミーティングが予定されているときに録音の開始を提案します。カレンダーのデータが Mac の外に出ることはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz 会在你的 Mac 上本地读取日历日程，以便在有已安排的会议时建议开始录制。任何日历数据都不会离开你的 Mac。"
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz needs microphone access to transcribe your voice into text."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz benötigt Zugriff auf das Mikrofon, um deine Stimme in Text zu transkribieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz necesita acceso al micrófono para transcribir tu voz a texto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz a besoin d’accéder au microphone pour transcrire votre voix en texte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz が音声をテキストに文字起こしするには、マイクへのアクセスが必要です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voiz 需要麦克风权限，才能将你的语音转录为文本。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

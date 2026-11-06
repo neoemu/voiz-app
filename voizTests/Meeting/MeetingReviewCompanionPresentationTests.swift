@@ -1,0 +1,267 @@
+import Foundation
+import SwiftUI
+import Testing
+
+@MainActor
+@Suite("Meeting review companion navigation")
+struct MeetingReviewCompanionPresentationTests {
+    @Test("Resizing uses one width across tabs, close/reopen and meeting changes")
+    func manualResizeKeepsContext() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession()
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 1200)
+        presentation.toggle(tab: 2)
+        presentation.resize(to: 520)
+        #expect(presentation.overlayWidth == 520)
+        #expect(presentation.tab == 2)
+        #expect(presentation.player === player)
+        presentation.closePanel()
+        presentation.toggle(tab: 1)
+        #expect(presentation.overlayWidth == 520)
+        presentation.dismiss()
+        presentation.registerHost(session: MeetingSession(), player: MeetingAudioPlayer(), viewportWidth: 1200)
+        presentation.toggle(tab: 1)
+        #expect(presentation.overlayWidth == 520)
+    }
+
+    @Test("Drag limits leave a usable summary when docked and a dismissible area when overlaid")
+    func dragBounds() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession()
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 900)
+        presentation.toggle(tab: 1)
+        presentation.resize(to: 10_000)
+        #expect(900 - presentation.overlayWidth >= MeetingReviewCompanionPresentation.minimumReviewWidth)
+        #expect(!presentation.isOverlay)
+        presentation.resize(to: 1)
+        #expect(presentation.overlayWidth == MeetingReviewCompanionPresentation.minimumWidth)
+        presentation.updateHost(session: session, player: player, viewportWidth: 700)
+        presentation.resize(to: 10_000)
+        #expect(presentation.isOverlay)
+        #expect(presentation.overlayWidth == MeetingReviewCompanionPresentation.maximumWidth)
+        #expect(700 - presentation.overlayWidth >= 48)
+        #expect(MeetingReviewCompanionPresentation.panelWidth(for: 200, preferred: 640) <= 200)
+        #expect(MeetingReviewCompanionPresentation.panelWidth(for: 0, preferred: 640) == 0)
+    }
+
+    @Test("Shrinking the window clamps the displayed width without discarding the user's preference")
+    func windowResizeRestoresPreferredWidth() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession()
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 1200)
+        presentation.toggle(tab: 2)
+        presentation.resize(to: 600)
+        presentation.updateHost(session: session, player: player, viewportWidth: 900)
+        #expect(presentation.overlayWidth == 420)
+        #expect(presentation.preferredWidth == 600)
+        presentation.updateHost(session: session, player: player, viewportWidth: 500)
+        #expect(presentation.overlayWidth == 452)
+        #expect(presentation.preferredWidth == 600)
+        presentation.updateHost(session: session, player: player, viewportWidth: 1200)
+        #expect(presentation.overlayWidth == 600)
+        #expect(presentation.tab == 2)
+    }
+
+    @Test("Width persists at the end of a drag; automatic window changes do not overwrite it")
+    func widthPersistence() throws {
+        let suite = "MeetingCompanionWidthTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let presentation = MeetingReviewCompanionPresentation(defaults: defaults)
+        let session = MeetingSession()
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 1200)
+        presentation.resize(to: 580)
+        #expect(MeetingReviewCompanionPresentation(defaults: defaults).preferredWidth == 340)
+        presentation.saveWidth()
+        presentation.updateHost(session: session, player: player, viewportWidth: 900)
+        #expect(presentation.overlayWidth == 420)
+        let restored = MeetingReviewCompanionPresentation(defaults: defaults)
+        #expect(restored.preferredWidth == 580)
+        restored.registerHost(session: session, player: player, viewportWidth: 1200)
+        #expect(restored.overlayWidth == 580)
+    }
+
+    @Test("Invalid widths cannot break the layout or overwrite a valid preference")
+    func invalidWidth() throws {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        presentation.registerHost(session: MeetingSession(), player: MeetingAudioPlayer(), viewportWidth: 1200)
+        presentation.resize(to: 500)
+        presentation.resize(to: .nan)
+        presentation.resize(to: .infinity)
+        #expect(presentation.preferredWidth == 500)
+        let suite = "MeetingCompanionWidthTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("invalid", forKey: "voiz.meeting.companion.width")
+        #expect(MeetingReviewCompanionPresentation(defaults: defaults).preferredWidth == 340)
+        defaults.set(10_000, forKey: "voiz.meeting.companion.width")
+        #expect(MeetingReviewCompanionPresentation(defaults: defaults).preferredWidth == 640)
+    }
+
+    @Test("Toolbar appears only for a registered review, including while both panels are closed")
+    func toolbarFollowsReviewLifecycle() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession(title: "Review")
+        let player = MeetingAudioPlayer()
+        #expect(!presentation.hasReview)
+        presentation.toggle(tab: 1)
+        #expect(!presentation.showsWindowPanel)
+        presentation.registerHost(session: session, player: player, viewportWidth: 1100)
+        #expect(presentation.hasReview)
+        #expect(!presentation.showsWindowPanel)
+        presentation.updateHost(session: session, player: player, viewportWidth: 720)
+        presentation.toggle(tab: 1)
+        #expect(presentation.isOverlay)
+        presentation.closePanel()
+        #expect(presentation.hasReview)
+        #expect(!presentation.isOverlay)
+        presentation.dismissIfMatching(session.id, player: player)
+        #expect(!presentation.hasReview)
+        presentation.updateHost(session: session, player: player, viewportWidth: 1100)
+        presentation.toggle(tab: 2)
+        #expect(!presentation.hasReview)
+        #expect(!presentation.showsWindowPanel)
+    }
+
+    @Test("An old instance of the same meeting cannot hide or retarget the current toolbar")
+    func staleReviewCannotReplaceToolbar() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession()
+        let previousPlayer = MeetingAudioPlayer()
+        let currentPlayer = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: previousPlayer, viewportWidth: 720)
+        presentation.toggle(tab: 1)
+        presentation.registerHost(session: session, player: currentPlayer, viewportWidth: 1100)
+        #expect(presentation.tab == 0)
+        presentation.updateHost(session: session, player: previousPlayer, viewportWidth: 720)
+        presentation.dismissIfMatching(session.id, player: previousPlayer)
+        presentation.toggle(tab: 2)
+        #expect(presentation.hasReview)
+        #expect(presentation.player === currentPlayer)
+        #expect(!presentation.isOverlay)
+        #expect(presentation.tab == 2)
+    }
+
+    @Test("Transcript and AI buttons share one docked panel and the same playback instance")
+    func togglesAndSwitchesTabs() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession(title: "Review")
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 1100)
+        presentation.toggle(tab: 1)
+        #expect(presentation.showsWindowPanel)
+        #expect(!presentation.isOverlay)
+        #expect(presentation.overlayWidth == 340)
+        #expect(presentation.tab == 1)
+        presentation.registerHost(session: session, player: player, viewportWidth: 1100)
+        presentation.toggle(tab: 2)
+        #expect(presentation.tab == 2)
+        #expect(presentation.player === player)
+        #expect(!player.isPlaying)
+        presentation.registerHost(session: session, player: player, viewportWidth: 1100)
+        presentation.toggle(tab: 2)
+        #expect(!presentation.showsWindowPanel)
+        #expect(presentation.hasReview)
+        #expect(presentation.session?.id == session.id)
+        #expect(presentation.player === player)
+    }
+
+    @Test("Resizing keeps the same session, selected tab and player while switching presentation")
+    func resizeKeepsContent() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession(title: "Review")
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 1000)
+        presentation.toggle(tab: 2)
+        presentation.updateHost(session: session, player: player, viewportWidth: 720)
+        #expect(presentation.isOverlay)
+        #expect(presentation.tab == 2)
+        #expect(presentation.session?.id == session.id)
+        #expect(presentation.player === player)
+        presentation.updateHost(session: session, player: player, viewportWidth: 900)
+        #expect(!presentation.isOverlay)
+        #expect(presentation.tab == 2)
+        #expect(presentation.showsWindowPanel)
+        #expect(MeetingReviewCompanionPresentation.panelWidth(for: 350) == 302)
+        #expect(MeetingReviewCompanionPresentation.panelWidth(for: 200) <= 200)
+    }
+
+    @Test("Closing the panel immediately restores access to the underlying view")
+    func closeClearsOverlayAndIgnoresLateRefresh() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession()
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 720)
+        presentation.toggle(tab: 1)
+        #expect(presentation.isOverlay)
+        presentation.tabBinding.wrappedValue = 0
+        #expect(!presentation.isOverlay)
+        #expect(!presentation.showsWindowPanel)
+        presentation.updateHost(session: session, player: player, viewportWidth: 720)
+        #expect(presentation.hasReview)
+        #expect(presentation.player === player)
+        #expect(!presentation.isOverlay)
+        presentation.toggle(tab: 1)
+        #expect(presentation.showsWindowPanel)
+    }
+
+    @Test("Leaving a review for calendar preparation closes its panel without restoring stale content")
+    func navigationDoesNotLeakPreviousSession() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        let first = MeetingSession(title: "First")
+        let second = MeetingSession(title: "Second")
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: first, player: player, viewportWidth: 720)
+        presentation.toggle(tab: 1)
+        presentation.dismissIfMatching(first.id, player: player)
+        presentation.updateHost(session: first, player: player, viewportWidth: 720)
+        #expect(!presentation.showsWindowPanel)
+        presentation.registerHost(session: second, player: player, viewportWidth: 1100)
+        presentation.toggle(tab: 2)
+        presentation.updateHost(session: first, player: player, viewportWidth: 720)
+        presentation.dismissIfMatching(first.id, player: player)
+        #expect(presentation.session?.id == second.id)
+        #expect(presentation.tab == 2)
+        #expect(!presentation.isOverlay)
+        presentation.dismiss()
+        #expect(!presentation.showsWindowPanel)
+    }
+
+    @Test("A context source preview has its own panel and does not replace the main review")
+    func sourcePreviewIsIndependent() {
+        let main = MeetingReviewCompanionPresentation(defaults: nil)
+        let source = MeetingReviewCompanionPresentation(defaults: nil)
+        let session = MeetingSession()
+        let mainPlayer = MeetingAudioPlayer()
+        let sourcePlayer = MeetingAudioPlayer()
+        main.registerHost(session: session, player: mainPlayer, viewportWidth: 1100)
+        main.toggle(tab: 1)
+        source.registerHost(session: session, player: sourcePlayer, viewportWidth: 700)
+        source.toggle(tab: 2)
+        source.dismiss()
+        #expect(main.tab == 1)
+        #expect(main.player === mainPlayer)
+        #expect(!main.isOverlay)
+        #expect(!source.showsWindowPanel)
+    }
+
+    @Test("Post-processing updates the open review without closing its panel or replacing playback")
+    func refreshCurrentSession() {
+        let presentation = MeetingReviewCompanionPresentation(defaults: nil)
+        var session = MeetingSession(title: "Before")
+        let player = MeetingAudioPlayer()
+        presentation.registerHost(session: session, player: player, viewportWidth: 1100)
+        presentation.toggle(tab: 2)
+        session.title = "After"
+        session.notes = "Updated notes"
+        presentation.updateHost(session: session, player: player, viewportWidth: 1100)
+        #expect(presentation.session?.title == "After")
+        #expect(presentation.session?.notes == "Updated notes")
+        #expect(presentation.tab == 2)
+        #expect(presentation.player === player)
+    }
+}

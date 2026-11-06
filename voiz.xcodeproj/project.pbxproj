@@ -1,0 +1,903 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+        AAB000012F43000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAB000032F43000000000001 /* Sparkle */; };
+		94ABEA922EA8750A00E9F1C2 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 94ABEA912EA8750A00E9F1C2 /* WhisperKit */; };
+		FA0001A12EA8750A00E9F1C2 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = FA0002A12EA8750A00E9F1C2 /* FluidAudio */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		94ABEA492EA86EF500E9F1C2 /* voiz.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = voiz.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7E5100022F1100000000A002 /* voizTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = voizTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7E51000A2F1100000000A00A /* Exceptions for "voiz" folder in "voizTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/Access/VoizEditingGate.swift,
+				Models/AIResource.swift,
+                Services/Storage/LegacyLibraryRecords.swift,
+                Services/Storage/LegacyPayloadManifest.swift,
+                Services/Storage/LegacyRetryJournal.swift,
+				Services/ChatHistoryStore.swift,
+				Services/MeetingSessionStore.swift,
+				Services/Storage/SyncLibraryRuntime.swift,
+				Services/Storage/SyncLocalDocumentStore.swift,
+				Services/Storage/SyncLibraryPersistence.swift,
+				Services/Sync/SyncLocalChangeWriter.swift,
+				Services/Sync/SyncLibraryRegistry.swift,
+				Services/Sync/SyncArchiveNames.swift,
+				Models/ChatModels.swift,
+				Services/TranslationHistoryStore.swift,
+				Services/Sync/SyncSnapshotJournal.swift,
+				Services/Sync/SyncResolutionJournal.swift,
+				Services/Sync/SyncDurableBlobStore.swift,
+				Services/Sync/SyncTransferFile.swift,
+				Services/Sync/SyncStreamedPayload.swift,
+				Services/Access/VoizAccessStore.swift,
+				Services/Storage/DurableLocalFile.swift,
+				Services/Storage/TextHistoryArchive.swift,
+				Services/Sync/SyncJournal.swift,
+				Services/Sync/SyncCanonicalJSON.swift,
+				Models/SyncDTOAdapter.swift,
+				Models/SyncPayloadSchema.swift,
+				Models/SyncDocument.swift,
+				Models/AppUpdateConfiguration.swift,
+				Models/AppSettingsTranscriptionSelection.swift,
+				Models/SyncPreferences.swift,
+				Models/SettingsCredentialEditBuffer.swift,
+				Models/AppEnvironment.swift,
+				Services/SettingsCredentialSealer.swift,
+				Models/ChatSlashCommand.swift,
+				Models/MeetingModels.swift,
+				Models/MeetingSpeakerIdentity.swift,
+				Models/MeetingCalendarModels.swift,
+				Models/MeetingProductivity.swift,
+				Models/MeetingTemplate.swift,
+				Models/TranscriptionEntry.swift,
+				Models/TranscriptionModels.swift,
+				Models/TranslationEntry.swift,
+				Models/TranslationState.swift,
+				Models/VoizUserProfile.swift,
+				Services/MeetingPreviewComposer.swift,
+				Services/AICompletionService.swift,
+				Services/TranslationService.swift,
+				Services/MeetingCalendarService.swift,
+				Services/MeetingWorkspaceStore.swift,
+				Services/MeetingAudioPlayer.swift,
+				Services/MeetingReviewCompanionPresentation.swift,
+				Services/SettingsStore.swift,
+				Services/SettingsCredentialsStore.swift,
+				Services/MeetingCredentialRecoveryGate.swift,
+				Services/UserProfileStore.swift,
+				Services/VoizDevelopmentLifecycle.swift,
+				Services/DictationAudioStore.swift,
+				Services/TranscriptionHistoryStore.swift,
+				Services/VoizNavigation.swift,
+				Services/InterfaceLocale.swift,
+				ViewModels/ScheduledMeetingModel.swift,
+				Services/MCP/MCPHTTPTransport.swift,
+				Services/MCP/MCPProtocolHandler.swift,
+				Services/ParakeetPTBRWeights.swift,
+				Services/MeetingEchoReconciler.swift,
+				Services/MeetingRecordedAudioBatchReader.swift,
+				Services/DiarizationWindowLinker.swift,
+				Services/Transcription/MeetingLiveTranscriber.swift,
+				Services/Transcription/AppleSpeechMeetingTranscriber.swift,
+				Services/VoizSearch.swift,
+				Services/VoizChatContext.swift,
+				Transcription/Contracts/TranscriptionEngine.swift,
+				Transcription/Contracts/TranscriptionEngineDescriptor.swift,
+				Transcription/Contracts/TranscriptionHardware.swift,
+				Transcription/Contracts/TranscriptionIdentifiers.swift,
+				Transcription/Contracts/TranscriptionRequest.swift,
+				Transcription/Contracts/TranscriptionResultTypes.swift,
+				Transcription/Contracts/TranscriptionRouter.swift,
+				Transcription/Engines/WhisperKitEngineSupport.swift,
+				Transcription/Engines/WhisperKitRuntime.swift,
+				Transcription/Engines/WhisperKitTranscriptionEngine.swift,
+				Transcription/Engines/ParakeetServiceRuntime.swift,
+				Transcription/Engines/ParakeetTranscriptionEngine.swift,
+				Transcription/Engines/AppleSpeechAnalyzerEngine.swift,
+				Transcription/Engines/AppleSpeechAssetRuntime.swift,
+				Transcription/Coordinator/TranscriptionCoordinator.swift,
+				Transcription/Coordinator/TranscriptionRuntimeStore.swift,
+				Transcription/Coordinator/TranscriptionModelStore.swift,
+				Transcription/Coordinator/LiveTranscriptionModelStorage.swift,
+				Transcription/Dictation/DictationTranscription.swift,
+				Transcription/Dictation/DictationTextPolicy.swift,
+				Transcription/Dictation/RecordingSampleBuffer.swift,
+				Transcription/Language/AppleVocabularyFusion.swift,
+				Transcription/Meeting/MeetingTranscription.swift,
+			);
+			target = 7E5100012F1100000000A001 /* voizTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		94ABEA4B2EA86EF500E9F1C2 /* voiz */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7E51000A2F1100000000A00A /* Exceptions for "voiz" folder in "voizTests" target */,
+			);
+			path = voiz;
+			sourceTree = "<group>";
+		};
+		7E5100032F1100000000A003 /* voizTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = voizTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		94ABEA462EA86EF500E9F1C2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				94ABEA922EA8750A00E9F1C2 /* WhisperKit in Frameworks */,
+				FA0001A12EA8750A00E9F1C2 /* FluidAudio in Frameworks */,
+				AAB000012F43000000000001 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7E5100052F1100000000A005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		94ABEA402EA86EF500E9F1C2 = {
+			isa = PBXGroup;
+			children = (
+				94ABEA4B2EA86EF500E9F1C2 /* voiz */,
+				7E5100032F1100000000A003 /* voizTests */,
+				94ABEA4A2EA86EF500E9F1C2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		94ABEA4A2EA86EF500E9F1C2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				94ABEA492EA86EF500E9F1C2 /* voiz.app */,
+				7E5100022F1100000000A002 /* voizTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		94ABEA482EA86EF500E9F1C2 /* voiz */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 94ABEA542EA86EF700E9F1C2 /* Build configuration list for PBXNativeTarget "voiz" */;
+			buildPhases = (
+				94ABEA452EA86EF500E9F1C2 /* Sources */,
+				94ABEA462EA86EF500E9F1C2 /* Frameworks */,
+				94ABEA472EA86EF500E9F1C2 /* Resources */,
+                AAB000062F43000000000001 /* Sign Sparkle Helpers */,
+				A7B3C2D11F3200000000E001 /* Embed Debug Git Commit (T3.2) */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				94ABEA4B2EA86EF500E9F1C2 /* voiz */,
+			);
+			name = voiz;
+			packageProductDependencies = (
+				94ABEA912EA8750A00E9F1C2 /* WhisperKit */,
+				FA0002A12EA8750A00E9F1C2 /* FluidAudio */,
+				AAB000032F43000000000001 /* Sparkle */,
+			);
+			productName = voiz;
+			productReference = 94ABEA492EA86EF500E9F1C2 /* voiz.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7E5100012F1100000000A001 /* voizTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7E5100072F1100000000A007 /* Build configuration list for PBXNativeTarget "voizTests" */;
+			buildPhases = (
+				7E5100042F1100000000A004 /* Sources */,
+				7E5100052F1100000000A005 /* Frameworks */,
+				7E5100062F1100000000A006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				7E5100032F1100000000A003 /* voizTests */,
+			);
+			name = voizTests;
+			packageProductDependencies = (
+			);
+			productName = voizTests;
+			productReference = 7E5100022F1100000000A002 /* voizTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		94ABEA412EA86EF500E9F1C2 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					94ABEA482EA86EF500E9F1C2 = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					7E5100012F1100000000A001 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+				};
+			};
+			buildConfigurationList = 94ABEA442EA86EF500E9F1C2 /* Build configuration list for PBXProject "voiz" */;
+			developmentRegion = "pt-BR";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				de,
+				en,
+				es,
+				fr,
+				ja,
+				Base,
+				"pt-BR",
+				"zh-Hans",
+			);
+			mainGroup = 94ABEA402EA86EF500E9F1C2;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				94ABEA752EA86FC800E9F1C2 /* XCLocalSwiftPackageReference "." */,
+				94ABEA902EA8750A00E9F1C2 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				FA0003A12EA8750A00E9F1C2 /* XCRemoteSwiftPackageReference "FluidAudio" */,
+				AAB000022F43000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 94ABEA4A2EA86EF500E9F1C2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				94ABEA482EA86EF500E9F1C2 /* voiz */,
+				7E5100012F1100000000A001 /* voizTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		94ABEA472EA86EF500E9F1C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7E5100062F1100000000A006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+        AAB000062F43000000000001 /* Sign Sparkle Helpers */ = {
+            isa = PBXShellScriptBuildPhase;
+            alwaysOutOfDate = 1;
+            buildActionMask = 2147483647;
+            files = ();
+            inputPaths = ("$(SRCROOT)/scripts/sign_sparkle.sh", );
+            outputPaths = ();
+            name = "Sign Sparkle Helpers";
+            runOnlyForDeploymentPostprocessing = 0;
+            shellPath = /bin/bash;
+            shellScript = "\"${SRCROOT}/scripts/sign_sparkle.sh\"\n";
+        };
+		A7B3C2D11F3200000000E001 /* Embed Debug Git Commit (T3.2) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.git",
+			);
+			name = "Embed Debug Git Commit (T3.2)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/VoizGitCommit.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# T3.2: grava o commit REAL do build apenas em Debug no .app (nao versionado).\n# Release sai cedo sem recurso. Sandboxing de script: YES no projeto; NO so no target voiz Debug\n# (worktree gitdir fora de SRCROOT). Inputs/outputs declarados abaixo.\nif [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  exit 0\nfi\nRES_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${RES_DIR}\"\nCOMMIT=\"unknown\"\nif command -v git >/dev/null 2>&1; then\n  COMMIT=$(cd \"${SRCROOT}\" && git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)\nfi\nprintf '%s' \"${COMMIT}\" > \"${RES_DIR}/VoizGitCommit.txt\"\necho \"note: Debug VoizGitCommit=${COMMIT}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		94ABEA452EA86EF500E9F1C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7E5100042F1100000000A004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		94ABEA522EA86EF700E9F1C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		94ABEA532EA86EF700E9F1C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		94ABEA552EA86EF700E9F1C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+                DEVELOPMENT_TEAM = "$(VOIZ_DEVELOPMENT_TEAM)";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 23;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				/* T3.2: só o target voiz em Debug precisa ler gitdir de worktree na fase Embed Git Commit. */
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_FILE = Config/AppInfo.plist;
+                CODE_SIGN_ENTITLEMENTS = voiz/Resources/voiz.entitlements;
+                VOIZ_UPDATES_ENABLED = NO;
+
+
+                INFOPLIST_KEY_NSAccessibilityUsageDescription = "Voiz precisa de acesso de acessibilidade para inserir texto transcrito em qualquer aplicacao.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Voiz precisa de permissao para inserir texto em outras aplicacoes.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Voiz le seus eventos de calendario, localmente no seu Mac, para sugerir iniciar a gravacao quando ha uma reuniao agendada. Nenhum dado de calendario sai do seu Mac.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voiz precisa acessar o microfone para transcrever sua voz em texto.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Voiz precisa capturar audio do sistema para registrar participantes remotos em reunioes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Voiz usa o reconhecimento de fala do macOS, 100% no aparelho, para mostrar a previa do transcript durante a gravacao. Nenhum audio sai do seu Mac.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmb.voiz;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		94ABEA562EA86EF700E9F1C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+                DEVELOPMENT_TEAM = "$(VOIZ_DEVELOPMENT_TEAM)";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 23;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_FILE = Config/AppInfo.plist;
+                CODE_SIGN_ENTITLEMENTS = voiz/Resources/voiz.entitlements;
+                VOIZ_UPDATES_ENABLED = NO;
+
+
+                INFOPLIST_KEY_NSAccessibilityUsageDescription = "Voiz precisa de acesso de acessibilidade para inserir texto transcrito em qualquer aplicacao.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Voiz precisa de permissao para inserir texto em outras aplicacoes.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Voiz le seus eventos de calendario, localmente no seu Mac, para sugerir iniciar a gravacao quando ha uma reuniao agendada. Nenhum dado de calendario sai do seu Mac.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voiz precisa acessar o microfone para transcrever sua voz em texto.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Voiz precisa capturar audio do sistema para registrar participantes remotos em reunioes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Voiz usa o reconhecimento de fala do macOS, 100% no aparelho, para mostrar a previa do transcript durante a gravacao. Nenhum audio sai do seu Mac.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmb.voiz;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7E5100082F1100000000A008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+                DEVELOPMENT_TEAM = "$(VOIZ_DEVELOPMENT_TEAM)";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 23;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmb.voizTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7E5100092F1100000000A009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+                DEVELOPMENT_TEAM = "$(VOIZ_DEVELOPMENT_TEAM)";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 23;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmb.voizTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		DE0000012F44000000000001 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Development;
+		};
+		DE0000022F44000000000001 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				DEVELOPMENT_TEAM = "$(VOIZ_DEVELOPMENT_TEAM)";
+				CODE_SIGN_STYLE = Manual;
+                ONLY_ACTIVE_ARCH = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 23;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				/* T3.2: só o target voiz em Debug precisa ler gitdir de worktree na fase Embed Git Commit. */
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_FILE = Config/AppInfo.plist;
+                CODE_SIGN_ENTITLEMENTS = voiz/Resources/voiz.entitlements;
+                VOIZ_UPDATES_ENABLED = NO;
+
+
+                INFOPLIST_KEY_NSAccessibilityUsageDescription = "Voiz precisa de acesso de acessibilidade para inserir texto transcrito em qualquer aplicacao.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Voiz precisa de permissao para inserir texto em outras aplicacoes.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Voiz le seus eventos de calendario, localmente no seu Mac, para sugerir iniciar a gravacao quando ha uma reuniao agendada. Nenhum dado de calendario sai do seu Mac.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voiz precisa acessar o microfone para transcrever sua voz em texto.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Voiz precisa capturar audio do sistema para registrar participantes remotos em reunioes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Voiz usa o reconhecimento de fala do macOS, 100% no aparelho, para mostrar a previa do transcript durante a gravacao. Nenhum audio sai do seu Mac.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmb.voiz.dev;
+				PRODUCT_NAME = "Voiz Dev";
+                INFOPLIST_KEY_CFBundleDisplayName = "Voiz Dev";
+                VOIZ_BUILD_BRANCH = "Xcode";
+                VOIZ_BUILD_COMMIT = "local";
+                VOIZ_BUILD_DIRTY = "YES";
+                VOIZ_BUILD_SOURCE_PATH = "$(SRCROOT)";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Development;
+		};
+		DE0000032F44000000000001 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+                DEVELOPMENT_TEAM = "$(VOIZ_DEVELOPMENT_TEAM)";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 23;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmb.voizTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Development;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		94ABEA442EA86EF500E9F1C2 /* Build configuration list for PBXProject "voiz" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				94ABEA522EA86EF700E9F1C2 /* Debug */,
+				DE0000012F44000000000001 /* Development */,
+				94ABEA532EA86EF700E9F1C2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		94ABEA542EA86EF700E9F1C2 /* Build configuration list for PBXNativeTarget "voiz" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				94ABEA552EA86EF700E9F1C2 /* Debug */,
+				DE0000022F44000000000001 /* Development */,
+				94ABEA562EA86EF700E9F1C2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7E5100072F1100000000A007 /* Build configuration list for PBXNativeTarget "voizTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E5100082F1100000000A008 /* Debug */,
+				DE0000032F44000000000001 /* Development */,
+				7E5100092F1100000000A009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		94ABEA752EA86FC800E9F1C2 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+        AAB000022F43000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/sparkle-project/Sparkle";
+            requirement = {kind = exactVersion; version = 2.10.0; };
+        };
+		94ABEA902EA8750A00E9F1C2 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.0;
+			};
+		};
+		FA0003A12EA8750A00E9F1C2 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio";
+			requirement = {
+				kind = exactVersion;
+				version = 0.15.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+        AAB000032F43000000000001 /* Sparkle */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = AAB000022F43000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+            productName = Sparkle;
+        };
+		94ABEA912EA8750A00E9F1C2 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 94ABEA902EA8750A00E9F1C2 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+		FA0002A12EA8750A00E9F1C2 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA0003A12EA8750A00E9F1C2 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 94ABEA412EA86EF500E9F1C2 /* Project object */;
+}

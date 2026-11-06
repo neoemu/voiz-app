@@ -1,0 +1,13 @@
+.DS_Store
+build/
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+Config/distribution.env
+Config/Development.local.xcconfig
+.env
+.env.*
+__pycache__/
+*.pyc
+.venv/

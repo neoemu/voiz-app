@@ -1,0 +1,33 @@
+name: Contributor checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: contributor-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-checks:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Source hygiene
+        run: git diff --check
+      - name: Swift syntax (no app installation)
+        run: find voiz voizTests -name '*.swift' -print0 | xargs -0 xcrun swiftc -frontend -parse
+      - name: Development installer failure paths
+        run: python3 -m unittest discover -s scripts/tests -p test_dev_workflow.py
+      - name: Export safeguards
+        run: python3 -m unittest discover -s scripts/tests -p test_export_open_source.py
+      - uses: astral-sh/setup-uv@v6
+      - name: Sparkle signature verification with synthetic keys
+        run: uv run --with cryptography==50.0.1 python -m unittest discover -s scripts/tests -p test_sparkle_distribution.py
+      # Full Swift tests and app builds require the contributor's Apple Development
+      # identity: VOIZ_DEV_TEAM=YOURTEAM make test dev-build. No production signing
+      # secrets are exposed to pull requests; source checks do not claim a full build.

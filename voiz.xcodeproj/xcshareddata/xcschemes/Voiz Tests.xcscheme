@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2700" version="1.7">
+  <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+    <BuildActionEntries>
+      <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="7E5100012F1100000000A001" BuildableName="voizTests.xctest" BlueprintName="voizTests" ReferencedContainer="container:voiz.xcodeproj"/>
+      </BuildActionEntry>
+    </BuildActionEntries>
+  </BuildAction>
+  <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
+    <Testables><TestableReference skipped="NO">
+      <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="7E5100012F1100000000A001" BuildableName="voizTests.xctest" BlueprintName="voizTests" ReferencedContainer="container:voiz.xcodeproj"/>
+    </TestableReference></Testables>
+  </TestAction>
+  <AnalyzeAction buildConfiguration="Debug"/>
+</Scheme>
