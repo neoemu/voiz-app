@@ -66,6 +66,8 @@
 				Models/TranscriptionModels.swift,
 				Models/TranslationEntry.swift,
 				Models/TranslationState.swift,
+                Models/TranslationAudioInbox.swift,
+                Models/TranslationSpeechBuffer.swift,
 				Models/VoizUserProfile.swift,
 				Services/MeetingPreviewComposer.swift,
 				Services/AICompletionService.swift,

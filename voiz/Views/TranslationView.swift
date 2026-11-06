@@ -50,6 +50,7 @@ struct TranslationWorkspaceView: View {
                     Spacer()
 
                     TranslationLanguagePill()
+                        .disabled(viewModel.isPreparingRecording || viewModel.state == .listening || viewModel.state == .processing)
                     ModelIndicatorBadge()
                 }
                 .padding(.top, 16)
@@ -67,10 +68,12 @@ struct TranslationWorkspaceView: View {
                             Text(issue.message).font(.system(size: 12)).foregroundStyle(VoizTheme.mutedText)
                         }
                         Spacer(minLength: 8)
-                        Button("Configurar IA") {
-                            NotificationCenter.default.post(name: Notification.Name("OpenVoizSettings"), object: nil)
+                        if issue != .speechDetectionUnavailable && issue != .audioProcessingFailed {
+                            Button("Configurar IA") {
+                                NotificationCenter.default.post(name: Notification.Name("OpenVoizSettings"), object: nil)
+                            }
+                            .buttonStyle(GranolaPillButtonStyle())
                         }
-                        .buttonStyle(GranolaPillButtonStyle())
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,6 +93,7 @@ struct TranslationWorkspaceView: View {
             .frame(maxWidth: .infinity)
         }
         .onAppear(perform: viewModel.reloadSettings)
+        .onDisappear(perform: viewModel.cancelRecordingStart)
     }
 }
 
@@ -312,6 +316,7 @@ struct TranslationControlsBar: View {
     }
 
     private var recordingText: String {
+        if viewModel.isPreparingRecording { return String(localized: "Cancelar preparação") }
         switch viewModel.state {
         case .idle: return String(localized: "Gravar")
         case .listening: return String(localized: "Parar")
@@ -331,6 +336,7 @@ struct TranslationControlsBar: View {
     }
 
     private var statusText: String {
+        if viewModel.isPreparingRecording { return String(localized: "Preparando detecção de fala…") }
         if viewModel.visibleTranslationIssue != nil { return String(localized: "Tradução indisponível") }
         switch viewModel.state {
         case .idle: return String(localized: "Pronto")

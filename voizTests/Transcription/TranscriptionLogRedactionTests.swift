@@ -305,13 +305,6 @@ struct TranscriptionLogRedactionTests {
             // Auto-colagem: se o app anterior voltou à frente (Bool) e a espera antes de colar.
             "targetAppWasRestored",
             #"String(format: "%.1f", delay)"#,
-            // Cadência do buffer de áudio: contagem de amostras, não conteúdo.
-            "self.audioBuffer.count",
-            "self.audioBuffer.count / 16000",
-            "chunk.count",
-            "chunk.count/16000",
-            // Energia do trecho — número, e é o que explica o descarte por silêncio.
-            "rms",
             // A falha do coordenador: `TranscriptionCoordinatorError` é `LocalizedError` no próprio
             // coordenador e, por contrato, descreve motor/modelo/estágio sem texto transcrito. A
             // falha da TRADUÇÃO não está nesta lista de propósito: ela passa por

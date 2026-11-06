@@ -1,8 +1,8 @@
 # Voiz
 
-Voiz é um app nativo de macOS para gravar, transcrever e organizar conversas, com identificação de falantes, histórico, chat, tradução e exportação. Este candidato privado prepara a edição sem conta Voiz, ativação comercial, sincronização hospedada ou IA fornecida pelo Voiz. O código do Voiz usa a [licença MIT](LICENSE). O endereço público ainda está em definição; este material não anuncia um lançamento.
+Voiz é um app nativo de macOS para gravar, transcrever e organizar conversas, com identificação de falantes, histórico, chat, tradução e exportação. Este candidato privado prepara a edição sem conta Voiz, ativação comercial, sincronização hospedada ou IA fornecida pelo Voiz. O código do Voiz usa a [licença MIT](LICENSE). A preparação está no repositório privado [neoemu/voiz-app](https://github.com/neoemu/voiz-app).
 
-A transcrição e a identificação de falantes usam modelos locais. O primeiro uso pode precisar baixar modelos. Recursos de IA usam o provedor e a chave configurados por você; o conteúdo enviado a esse provedor é processado de acordo com a sua configuração. MCP permite integrar ferramentas locais. O aplicativo inteiro não é descrito como offline.
+A transcrição e a identificação de falantes usam modelos locais. O primeiro uso pode precisar baixar modelos. A tradução ao vivo usa detecção local de fala e processa trechos delimitados por pausas; o modelo de detecção é preparado antes de abrir o microfone. Recursos de IA usam o provedor e a chave configurados por você; o conteúdo enviado a esse provedor é processado de acordo com a sua configuração. MCP permite integrar ferramentas locais. O aplicativo inteiro não é descrito como offline.
 
 ## Compilar e testar
 

@@ -45,6 +45,7 @@ nonisolated struct TranscriptionRequest: Sendable, Equatable {
         self.audio = audio
         self.context = context
         self.context.isDictation = useCase == .dictation
+        self.context.isTranslation = useCase == .translationChunk
     }
 }
 

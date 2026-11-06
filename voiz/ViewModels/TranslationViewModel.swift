@@ -62,12 +62,9 @@ class TranslationViewModel: ObservableObject {
     private var isProcessing = false
     private var recordingStartTask: Task<Void, Never>?
     private var recordingStartID: UUID?
+    private var recordingWork: VoizWorkActivity?
+    @Published private(set) var isPreparingRecording = false
     private var previousActiveApp: NSRunningApplication?
-    private var audioBuffer: [Float] = []
-    private var lastProcessedIndex = 0
-    private var processingTimer: Task<Void, Never>?
-    private var processingQueue: [Task<Void, Never>] = []
-    private var isProcessingChunk = false
     /// O aquecimento em voo, para que o próximo cancele este — ver `warmUpTranscription()`.
     private var warmUpTask: Task<Void, Never>?
     /// O temporizador do aviso de arquivamento, para duas gravações seguidas não deixarem o aviso
@@ -75,7 +72,10 @@ class TranslationViewModel: ObservableObject {
     private var archiveNoticeTask: Task<Void, Never>?
 
     /// As traduções em voo desta sessão. Sem esta lista o `stopListening` arquivava sem elas.
-    private var pendingTranslations: [Task<Void, Never>] = []
+    private var pendingTranslations: [UUID: Task<Void, Never>] = [:]
+    private var audioInbox: TranslationAudioInbox?
+    private var speechWorker: Task<Void, Never>?
+    private var recordingLanguages: (source: Language, target: Language)?
     private var orderedTranslations = OrderedTranslationResults()
 
     /// A gravação corrente, numerada.
@@ -188,162 +188,84 @@ class TranslationViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        audioService.onAudioData = { [weak self] samples in
-            guard let self else { return }
-            Task { @MainActor in
-                guard !samples.isEmpty else {
-                    return
-                }
-                self.audioBuffer.append(contentsOf: samples)
-                if self.audioBuffer.count % 16000 == 0 {
-                    print("🎙️ Audio buffer: \(self.audioBuffer.count) samples (~\(self.audioBuffer.count / 16000)s)")
-                }
-            }
-        }
     }
-    
-    /// Quanto áudio novo um ciclo exige para virar trecho.
-    ///
-    /// **Tem folga de propósito, e a folga é a correção.** O laço dorme 1,2 s e o limiar era
-    /// exatamente 1,2 s de áudio (19200 amostras a 16 kHz) — ou seja, o ciclo só era servido se o
-    /// microfone tivesse entregue tudo, sem um milissegundo de atraso. Como o `Task.sleep` garante
-    /// *pelo menos* 1,2 s e as amostras chegam pela main actor, qualquer atraso derrubava o ciclo
-    /// inteiro: `lastProcessedIndex` não andava e o trecho seguinte vinha com 2,4 s de áudio de uma
-    /// vez. Medido no app real com a sonda de cadência: **2 de 21 trechos** (~10%) chegavam
-    /// dobrados, e um bloco de 2,4 s é literalmente o "bloco grande" que o gate do CHECKLIST-ONDA2
-    /// reprovou.
-    ///
-    /// 1,08 s (90% do ciclo) mantém o trecho na faixa que o Whisper precisa para ter contexto — o
-    /// que quebra a transcrição é trecho curto de verdade, da ordem de 0,5 s — e absorve a jitter.
-    /// O trecho **não** encolhe: quem chega no prazo continua entregando 1,2 s ou mais, porque o
-    /// corte é sempre "todo o áudio ainda não processado".
-    private static let minimumChunkSamples = 17_280
 
+    /// Prepare the per-recording inbox before the microphone starts. The capture
+    /// callback only enqueues; one worker classifies and transcribes in audio order.
     @MainActor
-    private func startRealtimeProcessing() {
+    private func startRealtimeProcessing(pipeline: TranslationSpeechPipeline, inbox: TranslationAudioInbox) {
         translationEntryID = UUID()
         translationEntryDate = Date()
-        audioBuffer = []
-        lastProcessedIndex = 0
         sourceText = ""
         translatedText = ""
-        processingQueue = []
-        pendingTranslations = []
+        pendingTranslations = [:]
         orderedTranslations.reset()
         translationFailed = false
         translationIssue = nil
-        isProcessingChunk = false
-        // Estado que um trecho da sessão anterior pode ter deixado ligado ao ser abandonado: ele
-        // não zera nada ao voltar tarde, então quem zera é o começo da sessão nova.
         isTyping = false
         archiveNoticeTask?.cancel()
         archiveNotice = nil
         sessionEpoch += 1
-
-        print("🔄 Starting realtime processing...")
-
         let epoch = sessionEpoch
-        processingTimer = Task { @MainActor in
-            while true {
-                // Processa a cada 1.2 segundos (sweet spot).
-                //
-                // **Sem `try?`.** Engolir o `CancellationError` daqui era um trabalho duplicado
-                // sobre o MESMO áudio: o `stopRealtimeProcessing` cancela, mas o laço acordava,
-                // ignorava a exceção e rodava a volta inteira mais uma vez — só que o rabo já
-                // tinha sido montado a partir do `lastProcessedIndex` e a `processingQueue` já
-                // tinha sido esvaziada. Com 1,08 s ou mais de áudio pendente, nasciam DOIS
-                // trabalhos para o mesmo trecho, um deles fora de qualquer lista que o Parar
-                // esperasse. Achado do Farol.
-                do {
-                    try await Task.sleep(nanoseconds: 1_200_000_000)
-                } catch {
-                    return
-                }
-
-                let newSamples = audioBuffer.count - lastProcessedIndex
-
-                // Chunk de 1.2-1.5s de áudio. Tamanho ideal para Whisper ter contexto suficiente.
-                guard newSamples >= Self.minimumChunkSamples else {
-                    continue
-                }
-                
-                // Não espera chunk anterior terminar - processa em paralelo!
-                guard !isProcessingChunk else {
-                    print("⏸️ Previous chunk still processing, will catch up next cycle")
-                    continue
-                }
-                
-                let chunk = Array(audioBuffer[lastProcessedIndex...])
-                lastProcessedIndex = audioBuffer.count
-                
-                print("🎤 Processing chunk: \(chunk.count) samples (~\(chunk.count/16000)s)")
-                
-                // Inicia processamento em paralelo
-                isProcessingChunk = true
-                let task = Task { @MainActor in
-                    await processChunkForRealtimeTranslation(chunk, epoch: epoch)
-                    // A flag é da sessão CORRENTE. Um trecho abandonado pelo teto do Parar
-                    // limpando-a na gravação seguinte liberaria um segundo trecho concorrente —
-                    // duas inferências ao mesmo tempo, que é a regressão de cadência que o
-                    // `isProcessingChunk` existe para impedir. Farol e Quilha convergiram aqui.
-                    if epoch == sessionEpoch {
-                        isProcessingChunk = false
+        let source = sourceLanguage, target = targetLanguage
+        recordingLanguages = (source, target)
+        audioInbox = inbox
+        speechWorker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                for try await samples in inbox.stream {
+                    inbox.consumed(samples.count)
+                    guard epoch == self.sessionEpoch, !Task.isCancelled else { return }
+                    let phrases = try await pipeline.append(samples)
+                    for phrase in phrases {
+                        await self.processChunkForRealtimeTranslation(phrase, epoch: epoch,
+                            sourceLanguage: source, targetLanguage: target)
                     }
                 }
-                processingQueue.append(task)
+                guard epoch == self.sessionEpoch, !Task.isCancelled else { return }
+                for phrase in try await pipeline.finish() {
+                    await self.processChunkForRealtimeTranslation(phrase, epoch: epoch,
+                        sourceLanguage: source, targetLanguage: target)
+                }
+            } catch is CancellationError {
+                // A timed-out/finished recording cannot mutate the next recording.
+            } catch {
+                guard epoch == self.sessionEpoch else { return }
+                self.translationFailed = true
+                self.translationIssue = .audioProcessingFailed
+                self.addDebugLog("Não foi possível processar o áudio da tradução.")
+                self.stopListening()
             }
         }
     }
 
-    /// Encerra o laço e devolve **tudo que ainda pode escrever no texto**, na ordem em que precisa
-    /// ser esperado: o trecho periódico em voo primeiro, o rabo da fala depois.
-    ///
-    /// **Não cancela mais o trecho em voo.** Cancelar era perda de fala silenciosa: quando o laço
-    /// serve um ciclo ele já avançou o `lastProcessedIndex`, então o áudio daquele trecho não entra
-    /// no "resto do buffer" que vira o trecho final — e o WhisperKit confere cancelamento só
-    /// **depois** da inferência, então o texto era produzido e jogado fora. O usuário perdia o
-    /// pedaço de fala que estava sendo transcrito no instante em que ele apertou Parar, que é
-    /// justamente o pedaço mais recente. Achado do Farol.
-    ///
-    /// O rabo espera o trecho em voo por dentro, e não em paralelo: sem isso os dois disputariam a
-    /// vaga do coordenador e o texto poderia ser concatenado fora de ordem.
-    @MainActor
-    private func stopRealtimeProcessing() -> [Task<Void, Never>] {
-        processingTimer?.cancel()
-        processingTimer = nil
-
-        let inFlight = processingQueue
-        processingQueue = []
-        var pending = inFlight
-
-        // Processa último chunk se houver.
-        //
-        // **Idempotente:** o índice anda ao montar o rabo, então uma segunda chamada não monta um
-        // segundo. Até aqui a única proteção contra rabo duplicado era o `disabled` do botão na
-        // View — proteção de tela para uma invariante de modelo (Quilha). Isto também tira o
-        // combustível da volta extra do laço, que passa a ver zero amostra nova.
-        if !audioBuffer.isEmpty && lastProcessedIndex < audioBuffer.count {
-            let remainingChunk = Array(audioBuffer[lastProcessedIndex...])
-            lastProcessedIndex = audioBuffer.count
-            if remainingChunk.count >= 4000 {
-                let epoch = sessionEpoch
-                pending.append(
-                    Task { @MainActor in
-                        for task in inFlight {
-                            await task.value
-                        }
-                        await self.processChunkForRealtimeTranslation(remainingChunk, epoch: epoch)
-                    }
-                )
+    private func prepareInbox(epoch: Int) -> TranslationAudioInbox {
+        TranslationAudioInbox { [weak self] in
+            Task { @MainActor in
+                guard let self, epoch == self.sessionEpoch else { return }
+                self.translationFailed = true
+                self.translationIssue = .audioProcessingFailed
+                self.stopListening()
             }
         }
+    }
+
+    /// Capture has already drained its tap lock. Finish after its last queued frame;
+    /// the worker flushes the final partial VAD frame and utterance exactly once.
+    @MainActor
+    private func stopRealtimeProcessing() -> [Task<Void, Never>] {
+        audioService.onAudioData = nil
+        audioInbox?.finish()
+        audioInbox = nil
+        let pending = speechWorker.map { [$0] } ?? []
+        speechWorker = nil
         return pending
     }
 
     /// - Parameter epoch: a sessão de gravação em que este trecho nasceu. Trabalho de uma sessão já
     ///   arquivada **não** escreve mais nas caixas — ver `sessionEpoch`.
     @MainActor
-    private func processChunkForRealtimeTranslation(_ chunk: [Float], epoch: Int) async {
+    private func processChunkForRealtimeTranslation(_ chunk: [Float], epoch: Int, sourceLanguage: Language, targetLanguage: Language) async {
         // Antes de QUALQUER escrita de estado e antes do trabalho caro. Um trecho abandonado pelo
         // teto do Parar chega aqui depois de a gravação seguinte já ter começado: sem esta linha
         // ele pediria uma inferência nova e tomaria a vaga do coordenador da sessão 2 — atrasando
@@ -351,13 +273,10 @@ class TranslationViewModel: ObservableObject {
         // Farol.
         guard epoch == sessionEpoch else { return }
 
-        // Valida qualidade do áudio
-        let rms = sqrt(chunk.map { $0 * $0 }.reduce(0, +) / Float(chunk.count))
-        guard rms > 0.001 else {
-            addDebugLog("⚠️ Audio too quiet (RMS: \(rms)), skipping")
-            return
-        }
-        
+        // The neural detector has already admitted speech. Do not veto quiet voices
+        // with a fixed RMS threshold or discard legitimate short answers.
+        guard !chunk.isEmpty, chunk.allSatisfy(\.isFinite) else { return }
+
         do {
             isTyping = true
 
@@ -436,6 +355,7 @@ class TranslationViewModel: ObservableObject {
             // esperava o trecho e arquivava antes de a tradução dele chegar — a tradução aparecia
             // depois, sozinha, numa caixa que já tinha sido limpa. Era o mesmo órfão de antes, um
             // passo adiante (achado do Farol).
+            let translationID = UUID()
             let translation = Task.detached { [weak self] in
                 guard let self = self else { return }
 
@@ -496,8 +416,9 @@ class TranslationViewModel: ObservableObject {
                         }
                     }
                 }
+                await MainActor.run { _ = self.pendingTranslations.removeValue(forKey: translationID) }
             }
-            pendingTranslations.append(translation)
+            pendingTranslations[translationID] = translation
 
         } catch {
             // `TranscriptionCoordinatorError` é `LocalizedError` (no próprio coordenador), então
@@ -505,6 +426,8 @@ class TranslationViewModel: ObservableObject {
             // "erro 2" que um enum sem descrição devolveria. Sem texto transcrito, por construção.
             guard epoch == sessionEpoch else { return }
             addDebugLog("❌ Falha na transcrição do trecho: \(error.localizedDescription)")
+            translationFailed = true
+            translationIssue = .audioProcessingFailed
             isTyping = false
         }
     }
@@ -568,10 +491,22 @@ class TranslationViewModel: ObservableObject {
         rememberFrontmostApplication()
         let token = UUID()
         recordingStartID = token
+        isPreparingRecording = true
+        let libraryID = LocalLibraryRuntime.shared.context?.libraryID
+        let activity = VoizWorkTracker.shared.beginActivity()
+        recordingWork = activity
         recordingStartTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                if recordingStartID == token { recordingStartID = nil; recordingStartTask = nil }
+                if recordingStartID == token {
+                    recordingStartID = nil
+                    recordingStartTask = nil
+                    isPreparingRecording = false
+                    if state != .listening {
+                        activity.finish()
+                        if recordingWork === activity { recordingWork = nil }
+                    }
+                }
             }
             guard await VoizAccessStore.shared.prepareNewOperation(kind: .recording, workID: token) else {
                 if !Task.isCancelled, recordingStartID == token {
@@ -607,14 +542,19 @@ class TranslationViewModel: ObservableObject {
             }
             guard !Task.isCancelled, recordingStartID == token else { return }
             guard granted else { handleDeniedPermission(); return }
-            await beginRecordingSession(startID: token)
+            guard LocalLibraryRuntime.shared.context?.libraryID == libraryID else { return }
+            await beginRecordingSession(startID: token, libraryID: libraryID)
         }
     }
 
-    private func cancelRecordingStart() {
+    func cancelRecordingStart() {
+        guard recordingStartID != nil else { return }
         recordingStartTask?.cancel()
         recordingStartTask = nil
         recordingStartID = nil
+        isPreparingRecording = false
+        recordingWork?.finish()
+        recordingWork = nil
     }
 
     // Atalhos de ditado são geridos só pelo TranscriptionViewModel (DictationHotKeyService).
@@ -640,6 +580,7 @@ class TranslationViewModel: ObservableObject {
             // com as caixas limpas, ainda voltava a escrever nelas depois, como fragmento órfão.
             let complete = await drainPendingWork(chunks: pendingChunks)
             if !complete {
+                for task in pendingChunks { task.cancel() }
                 addDebugLog("⏳ Parte do último trecho não voltou a tempo e ficou de fora do arquivo")
             }
             // On timeout keep completed successors too, in their source order, while
@@ -666,7 +607,9 @@ class TranslationViewModel: ObservableObject {
             isTyping = false
             // Fecha a sessão: o que estourou o teto e chegar depois não escreve mais na tela.
             sessionEpoch += 1
-            pendingTranslations = []
+            pendingTranslations = [:]
+            recordingWork?.finish()
+            recordingWork = nil
             state = .idle
             // RecordingHUD.shared.hide()  // Não usado na tradução
         }
@@ -695,7 +638,7 @@ class TranslationViewModel: ObservableObject {
             for task in chunks {
                 await task.value
             }
-            let translations = await MainActor.run { self?.pendingTranslations ?? [] }
+            let translations = await MainActor.run { self.map { Array($0.pendingTranslations.values) } ?? [] }
             for task in translations {
                 await task.value
             }
@@ -734,8 +677,8 @@ class TranslationViewModel: ObservableObject {
                 id: translationEntryID,
                 sourceText: source,
                 translatedText: translated,
-                sourceLanguage: sourceLanguage,
-                targetLanguage: targetLanguage,
+                sourceLanguage: recordingLanguages?.source ?? sourceLanguage,
+                targetLanguage: recordingLanguages?.target ?? targetLanguage,
                 timestamp: translationEntryDate
             )
         )
@@ -755,7 +698,7 @@ class TranslationViewModel: ObservableObject {
     }
     
     @MainActor
-    private func beginRecordingSession(startID: UUID) async {
+    private func beginRecordingSession(startID: UUID, libraryID: UUID?) async {
         guard await VoizAccessStore.shared.authorizeNewOperation(kind: .recording, workID: startID) else {
             guard !Task.isCancelled, recordingStartID == startID else { return }
             state = .error(VoizAccessStore.shared.lastError ?? VoizAccessMessages.libraryUnavailable)
@@ -766,19 +709,34 @@ class TranslationViewModel: ObservableObject {
         case .idle, .error: break
         case .listening, .processing: return
         }
+        let pipeline: TranslationSpeechPipeline
+        do {
+            // A missing VAD model is prepared before opening the microphone.
+            pipeline = try await TranslationSpeechPipeline.make()
+        } catch {
+            guard !Task.isCancelled, recordingStartID == startID else { return }
+            translationIssue = .speechDetectionUnavailable
+            return
+        }
+        guard !Task.isCancelled, recordingStartID == startID,
+              LocalLibraryRuntime.shared.context?.libraryID == libraryID else { return }
+        let inbox = prepareInbox(epoch: sessionEpoch + 1)
+        audioService.onAudioData = { samples in inbox.append(samples) }
         do {
             try audioService.startRecording()
+            // The engine is running and its earliest frames are queued safely.
+            // Only now may a new recording replace the previous visible workspace.
+            startRealtimeProcessing(pipeline: pipeline, inbox: inbox)
             state = .listening
             isProcessing = false
-            startRealtimeProcessing()
-            // NÃO mostra HUD na tab de tradução
-            // RecordingHUD.shared.update(state: .listening)
         } catch {
-            state = .error("Failed to start recording: \(error.localizedDescription)")
-            // RecordingHUD.shared.hide()
+            audioService.onAudioData = nil
+            inbox.finish()
+            state = .error(String(localized: "Não foi possível iniciar a gravação. Verifique o microfone e tente novamente."))
         }
     }
     
+
     @MainActor
     private func handleDeniedPermission() {
         state = .error("Microphone permission denied. Please enable in System Settings > Privacy & Security > Microphone")

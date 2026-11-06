@@ -64,7 +64,7 @@ RULES = {
 # file bytes and rule are pinned, so any edit requires fresh review.
 REVIEWED_SYNTHETIC_FIXTURES = {
     ('voizTests/Transcription/TranscriptionLogRedactionTests.swift', 'openai-key'):
-        '7014d0ad0d0848abad4553e4a915b547cb134c6293412a9470f869fe1331d443',
+        'debd7440bcbab0e4029ad2d9e4036ee3f4a6768406987174b2ff7edf23f96066',
 }
 
 

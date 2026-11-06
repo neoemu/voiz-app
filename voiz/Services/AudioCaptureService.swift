@@ -128,12 +128,10 @@ class AudioCaptureService: NSObject, ObservableObject {
         
         updateAudioLevel(samples: samples)
         
-        // Send audio data in realtime for streaming processing
-        if let handler = onAudioData {
-            DispatchQueue.global(qos: .userInitiated).async {
-                handler(convertedSamples)
-            }
-        }
+        // Ordered delivery under processingLock. Consumers must only enqueue/yield:
+        // no inference, UI work or blocking waits here. stopRecording drains this
+        // lock, so its return also fences every admitted frame into the consumer.
+        onAudioData?(convertedSamples)
     }
     
     private func resample(_ samples: [Float], from sourceSampleRate: Double, to targetSampleRate: Double) -> [Float] {

@@ -123,7 +123,7 @@ nonisolated final class LiveWhisperKitSession: WhisperKitSession, @unchecked Sen
                 withoutTimestamps: !context.isDictation,
                 // WhisperKit otherwise skips clips <= 1s and the last <= 1s window.
                 // A short "A", "não" or "agreed" is a complete answer in dictation.
-                windowClipTime: context.isDictation ? 0 : 1,
+                windowClipTime: (context.isDictation || context.isTranslation) ? 0 : 1,
                 promptTokens: prompt.tokens.isEmpty ? nil : prompt.tokens
             )
         )

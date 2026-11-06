@@ -1,7 +1,7 @@
 #if DEBUG
 import Foundation
 
-// Sonda de cadência da tradução ao vivo (diagnóstico da reprovação do CHECKLIST-ONDA2).
+// Sonda histórica de cadência (antes da segmentação por fala) da tradução ao vivo (diagnóstico da reprovação do CHECKLIST-ONDA2).
 //
 // Existe para responder uma pergunta que só o app real responde: **quanto custa um trecho de 1,2 s
 // pelo coordenador, e quanto custava pelo serviço legado**. O laço da tradução dorme 1,2 s, e
@@ -384,7 +384,8 @@ enum TranslationCadenceProbe {
     }
 
     /// O laço de verdade, em tempo real: um produtor despeja o áudio no ritmo do microfone e o
-    /// consumidor é uma cópia fiel do `startRealtimeProcessing()` da tradução. É aqui que a bola de
+    /// consumidor reproduz o laço antigo de 1,2 s. A validação atual de segmentação usa
+    /// `TranslationSpeechProbe` e `TranslationSpeechPipeline`, compartilhado com a captura real. É aqui que a bola de
     /// neve aparece — ou não.
     private static func replayLoop(
         audio: TranscriptionAudio,

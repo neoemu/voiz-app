@@ -4,6 +4,8 @@ enum TranslationIssue: Equatable {
     case missingAPIKey(provider: String)
     case credentialsUnavailable
     case requestFailed
+    case speechDetectionUnavailable
+    case audioProcessingFailed
 
     static func configuration(in settings: AppSettings, credentialsAreReady: Bool = true) -> Self? {
         guard credentialsAreReady else { return nil }
@@ -25,6 +27,10 @@ enum TranslationIssue: Equatable {
             return String(localized: "Configure a chave de \(provider) em Configurações → IA & Tradução para começar.")
         case .credentialsUnavailable:
             return String(localized: "Não foi possível acessar as chaves de API. Tente novamente em Configurações → IA & Tradução.")
+        case .speechDetectionUnavailable:
+            return String(localized: "Não foi possível preparar a detecção de fala. Confira a conexão para baixar o modelo e tente novamente.")
+        case .audioProcessingFailed:
+            return String(localized: "A gravação foi interrompida porque o áudio não pôde ser processado. O texto disponível foi preservado.")
         case .requestFailed:
             // Provider errors can echo request content. Keep those details out of this notice and logs.
             return String(localized: "Não foi possível traduzir. Verifique a conexão e a configuração do provedor de IA.")

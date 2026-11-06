@@ -23,7 +23,7 @@ Não é necessário possuir certificados, chaves Sparkle, credenciais de notariz
 
 ## Validação e rede
 
-Use dados sintéticos. Os testes não devem criar contas, cobranças ou dados remotos. Um clone limpo pode precisar de internet para resolver pacotes Swift; o app também pode baixar modelos no primeiro uso. Recursos de IA externos precisam da configuração do usuário.
+Use dados sintéticos. Os testes não devem criar contas, cobranças ou dados remotos. Um clone limpo pode precisar de internet para resolver pacotes Swift; o app também pode baixar modelos no primeiro uso. A tradução ao vivo precisa do pequeno modelo local Silero VAD antes de iniciar a captura. Depois de armazenado no cache, a detecção de fala não precisa da rede; o provedor de tradução escolhido continua usando a própria conexão. Falha ao preparar o detector mantém o microfone fechado e permite tentar novamente. Recursos de IA externos precisam da configuração do usuário.
 
 Execute `git diff --check` e os testes pertinentes antes da revisão. A CI não recebe credenciais de produção; verificações estáticas não substituem build/testes assinados nem validação funcional de áudio e interface.
 

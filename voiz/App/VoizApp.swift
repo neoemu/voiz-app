@@ -14,7 +14,7 @@ struct VoizApp: App {
     #if DEBUG
     /// Modo CLI do runner T3.2: não sobe ContentView / TranscriptionViewModel / Accessibility.
     private static let isBenchmarkHeadless =
-        ProcessInfo.processInfo.arguments.contains("--voiz-bench-run") || DictationProbe.isRequested
+        ProcessInfo.processInfo.arguments.contains("--voiz-bench-run") || DictationProbe.isRequested || TranslationSpeechProbe.isRequested
 
     /// Sonda de cadência da tradução: mesma ideia do modo CLI acima — sem UI, para medir o custo
     /// de um trecho sem a tela nem os aquecimentos dos outros view models no meio.
@@ -39,6 +39,11 @@ struct VoizApp: App {
 
     init() {
         #if DEBUG
+        if TranslationSpeechProbe.isRequested {
+            _transcriptionViewModelHolder = StateObject(wrappedValue: OptionalTranscriptionViewModel(create: false))
+            DispatchQueue.main.async { Task { @MainActor in await TranslationSpeechProbe.run() } }
+            return
+        }
         if DictationProbe.isRequested {
             _transcriptionViewModelHolder = StateObject(wrappedValue: OptionalTranscriptionViewModel(create: false))
             DispatchQueue.main.async { Task { @MainActor in await DictationProbe.run() } }

@@ -4,6 +4,7 @@ import Foundation
 nonisolated struct TranscriptionContext: Sendable, Equatable {
     var vocabulary: [String] = []
     var isDictation = false
+    var isTranslation = false
     var requiresVocabulary: Bool { isDictation && !vocabulary.isEmpty }
     var usesAppleDictationVocabulary: Bool { requiresVocabulary }
     /// Apple's documented upper limit across all contextual string tags.
