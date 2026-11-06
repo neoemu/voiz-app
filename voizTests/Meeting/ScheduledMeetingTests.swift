@@ -240,7 +240,7 @@ struct ScheduledMeetingTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MeetingWorkspaceStore(defaults: defaults)
         var calls = 0
-        let model = ScheduledMeetingModel(eventID: "one", store: store, loadSettings: { AppSettings() }) { _, _ in
+        let model = ScheduledMeetingModel(eventID: "one", store: store, authorize: { true }, loadSettings: { AppSettings() }) { _, _ in
             calls += 1
             return "An answer"
         }
@@ -266,7 +266,7 @@ struct ScheduledMeetingTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         var calls = 0
         var retryPrompt = ""
-        let model = ScheduledMeetingModel(eventID: "one", store: MeetingWorkspaceStore(defaults: defaults), loadSettings: { AppSettings() }) { prompt, _ in
+        let model = ScheduledMeetingModel(eventID: "one", store: MeetingWorkspaceStore(defaults: defaults), authorize: { true }, loadSettings: { AppSettings() }) { prompt, _ in
             calls += 1
             if calls == 1 { throw NSError(domain: "Test", code: 1) }
             retryPrompt = prompt
@@ -291,7 +291,7 @@ struct ScheduledMeetingTests {
         var completions: [CheckedContinuation<String, any Error>] = []
         let (starts, started) = AsyncStream<Void>.makeStream()
         var iterator = starts.makeAsyncIterator()
-        let model = ScheduledMeetingModel(eventID: "one", store: MeetingWorkspaceStore(defaults: defaults), loadSettings: { AppSettings() }) { _, _ in
+        let model = ScheduledMeetingModel(eventID: "one", store: MeetingWorkspaceStore(defaults: defaults), authorize: { true }, loadSettings: { AppSettings() }) { _, _ in
             try await withCheckedThrowingContinuation { continuation in
                 completions.append(continuation)
                 started.yield(())
@@ -343,7 +343,7 @@ struct ScheduledMeetingTests {
         store.savePreparation(.init(eventID: "one", title: "Planning", eventDate: .now,
             selectedSessionIDs: [old.id], text: "STALE-BRIEFING", generatedAt: .now))
         var sent = ""
-        let model = ScheduledMeetingModel(eventID: "one", store: store, loadSettings: { AppSettings() }) { prompt, _ in sent = prompt; return "Ready" }
+        let model = ScheduledMeetingModel(eventID: "one", store: store, authorize: { true }, loadSettings: { AppSettings() }) { prompt, _ in sent = prompt; return "Ready" }
         #expect(model.selectedSessionIDs == [old.id])
         model.setContext([new.id])
         #expect(MeetingWorkspaceStore(defaults: defaults).scheduledDrafts["one"]?.contextSessionIDs == [new.id])

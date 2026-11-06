@@ -102,7 +102,7 @@ struct VoizDevelopmentLifecycleTests {
         let (starts, started) = AsyncStream<Void>.makeStream()
         var iterator = starts.makeAsyncIterator()
         let model = ScheduledMeetingModel(eventID: "synthetic", store: MeetingWorkspaceStore(defaults: defaults),
-                                          workTracker: workTracker, loadSettings: { AppSettings() }) { _, _ in
+                                          workTracker: workTracker, authorize: { true }, loadSettings: { AppSettings() }) { _, _ in
             try await withCheckedThrowingContinuation { continuation in
                 completion = continuation
                 started.yield(())
@@ -135,7 +135,7 @@ struct VoizDevelopmentLifecycleTests {
         let (starts, started) = AsyncStream<Void>.makeStream()
         var iterator = starts.makeAsyncIterator()
         let model = ScheduledMeetingModel(eventID: "synthetic", store: MeetingWorkspaceStore(defaults: defaults),
-                                          workTracker: workTracker, loadSettings: { AppSettings() }) { _, _ in
+                                          workTracker: workTracker, authorize: { true }, loadSettings: { AppSettings() }) { _, _ in
             try await withCheckedThrowingContinuation { continuation in
                 completions.append(continuation)
                 started.yield(())
