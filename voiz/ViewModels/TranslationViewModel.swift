@@ -76,6 +76,7 @@ class TranslationViewModel: ObservableObject {
 
     /// As traduções em voo desta sessão. Sem esta lista o `stopListening` arquivava sem elas.
     private var pendingTranslations: [Task<Void, Never>] = []
+    private var orderedTranslations = OrderedTranslationResults()
 
     /// A gravação corrente, numerada.
     ///
@@ -228,6 +229,7 @@ class TranslationViewModel: ObservableObject {
         translatedText = ""
         processingQueue = []
         pendingTranslations = []
+        orderedTranslations.reset()
         translationFailed = false
         translationIssue = nil
         isProcessingChunk = false
@@ -428,6 +430,7 @@ class TranslationViewModel: ObservableObject {
                 return
             }
             let service = TranslationService(settings: requestSettings)
+            guard let ticket = orderedTranslations.reserve() else { return }
 
             // **Rastreada**, e não solta: enquanto era um `Task.detached` sem dono, o `stopListening`
             // esperava o trecho e arquivava antes de a tradução dele chegar — a tradução aparecia
@@ -462,15 +465,13 @@ class TranslationViewModel: ObservableObject {
                             return
                         }
 
+                        guard self.orderedTranslations.complete(ticket, text: translation) else { return }
                         self.lastTranslationLatency = latency
                         self.addDebugLog(
                             TranscriptionLogRedaction.translated(translation, latency: latency)
                         )
 
-                        if !self.translatedText.isEmpty {
-                            self.translatedText += " "
-                        }
-                        self.translatedText += translation
+                        self.translatedText = self.orderedTranslations.text
                         if !self.saveCurrentTranslationToHistory() {
                             self.translationFailed = true; self.translationIssue = .requestFailed
                         }
@@ -478,12 +479,16 @@ class TranslationViewModel: ObservableObject {
                 } catch {
                     await MainActor.run {
                         guard epoch == self.sessionEpoch else { return }
+                        guard self.orderedTranslations.fail(ticket) else { return }
                         // Não é `error.localizedDescription`: o `translationFailed` do serviço
                         // carrega o corpo de resposta do provedor, e num erro de filtro de conteúdo
                         // esse corpo devolve o prompt — que leva o transcript inteiro. O vazamento
                         // que a re-review achou no serviço chega aqui pelo mesmo caminho.
                         self.addDebugLog(TranslationService.TranslationError.logMessage(for: error))
+                        // A failed predecessor must not hold already completed later chunks.
+                        self.translatedText = self.orderedTranslations.text
                         self.translationFailed = true
+                        _ = self.saveCurrentTranslationToHistory()
                         if case TranslationService.TranslationError.missingAPIKey = error {
                             self.translationIssue = .missingAPIKey(provider: requestProvider.displayName)
                         } else {
@@ -637,6 +642,10 @@ class TranslationViewModel: ObservableObject {
             if !complete {
                 addDebugLog("⏳ Parte do último trecho não voltou a tempo e ficou de fora do arquivo")
             }
+            // On timeout keep completed successors too, in their source order, while
+            // preventing a late completion from changing the archived snapshot.
+            orderedTranslations.close()
+            translatedText = orderedTranslations.text
             if !translatedText.isEmpty {
                 insertTextAtCursor(translatedText)
             }
@@ -957,6 +966,7 @@ class TranslationViewModel: ObservableObject {
     func clearTranslation() {
         sourceText = ""
         translatedText = ""
+        orderedTranslations.reset()
     }
     
     @MainActor

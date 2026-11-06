@@ -27,7 +27,7 @@ nonisolated enum WhisperKitEngineSupport {
         var cleaned = text
         // Only known non-speech annotations. Parentheses/brackets can contain real content,
         // especially in code. Dictation bypasses this cleanup entirely to preserve the source.
-        let tags = "(?:música|musica|music|aplausos|applause|risos|laughter|silêncio|silencio|silence)"
+        let tags = "(?:música|musica|music|aplausos|applause|risos|laughter|silêncio|silencio|silence|blank_audio|no_speech)"
         cleaned = cleaned.replacingOccurrences(of: "\\[[ \\t]*" + tags + "[ \\t]*\\]|\\([ \\t]*" + tags + "[ \\t]*\\)",
                                               with: "", options: [.regularExpression, .caseInsensitive])
         // Glifos musicais soltos.

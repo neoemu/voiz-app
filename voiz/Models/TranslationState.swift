@@ -53,3 +53,75 @@ nonisolated enum TranslationArchiveNotice: Equatable {
         }
     }
 }
+
+
+/// Provider requests may finish in any order. Only the settled source-order prefix is
+/// shown live; closing a recording preserves every completed result in source order.
+/// Tickets belong to one recording, so delayed callbacks cannot mutate the next one.
+nonisolated struct OrderedTranslationResults {
+    struct Ticket: Hashable, Sendable {
+        fileprivate let session: UUID
+        fileprivate let index: Int
+    }
+
+    private enum Slot {
+        case pending
+        case translated(String)
+        case failed
+    }
+
+    private var session = UUID()
+    private var slots: [Slot] = []
+    private var acceptingResults = true
+
+    mutating func reset() {
+        session = UUID()
+        slots = []
+        acceptingResults = true
+    }
+
+    mutating func reserve() -> Ticket? {
+        guard acceptingResults else { return nil }
+        let ticket = Ticket(session: session, index: slots.count)
+        slots.append(.pending)
+        return ticket
+    }
+
+    @discardableResult
+    mutating func complete(_ ticket: Ticket, text: String) -> Bool {
+        settle(ticket, as: .translated(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+    }
+
+    @discardableResult
+    mutating func fail(_ ticket: Ticket) -> Bool {
+        settle(ticket, as: .failed)
+    }
+
+    private mutating func settle(_ ticket: Ticket, as result: Slot) -> Bool {
+        guard acceptingResults, ticket.session == session, slots.indices.contains(ticket.index),
+              case .pending = slots[ticket.index] else { return false }
+        slots[ticket.index] = result
+        return true
+    }
+
+    var text: String {
+        var parts: [String] = []
+        for slot in slots {
+            switch slot {
+            case .pending: return parts.joined(separator: " ")
+            case .translated(let text): if !text.isEmpty { parts.append(text) }
+            case .failed: continue
+            }
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// Also used when the drain deadline expires: release completed successors of a
+    /// missing chunk, then refuse late results. The caller reports the partial archive.
+    mutating func close() {
+        for index in slots.indices {
+            if case .pending = slots[index] { slots[index] = .failed }
+        }
+        acceptingResults = false
+    }
+}

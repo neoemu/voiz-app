@@ -22,6 +22,15 @@ struct WhisperKitEngineSupportTests {
         #expect(WhisperKitEngineSupport.sanitize("Oi [risos] tudo bem") == "Oi tudo bem")
     }
 
+    @Test("Marcadores explícitos de ausência de fala não viram texto traduzível")
+    func sanitizeRemovesExplicitNoSpeechMarkers() {
+        #expect(WhisperKitEngineSupport.sanitize("[BLANK_AUDIO]") == "")
+        #expect(WhisperKitEngineSupport.sanitize("[blank_audio] (NO_SPEECH)") == "")
+        #expect(WhisperKitEngineSupport.sanitize("[BLANK_AUDIO] Review on Tuesday. [NO_SPEECH]") == "Review on Tuesday.")
+        // Ordinary speech, arbitrary brackets and code are not a silence blacklist.
+        #expect(WhisperKitEngineSupport.sanitize("you Thank you. blank_audio [customer] [1, 2]") == "you Thank you. blank_audio [customer] [1, 2]")
+    }
+
     @Test("Glifos musicais soltos somem do texto")
     func sanitizeRemovesMusicGlyphs() {
         #expect(WhisperKitEngineSupport.sanitize("♪ lá lá lá ♪") == "lá lá lá")
