@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "name": "meeting-minimum",
+      "entity_type": "meeting",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "title": "",
+        "session_type": "meeting",
+        "started_at_ms": 0,
+        "ended_at_ms": 0,
+        "paused_ms": 0,
+        "notes": "",
+        "include_notes_in_summary": true,
+        "context_session_ids": [],
+        "speakers": [],
+        "folder_id": null
+      },
+      "canonical": "{\"context_session_ids\":[],\"ended_at_ms\":0,\"folder_id\":null,\"id\":\"00000000-0000-0000-0000-000000000000\",\"include_notes_in_summary\":true,\"notes\":\"\",\"paused_ms\":0,\"schema_version\":1,\"session_type\":\"meeting\",\"speakers\":[],\"started_at_ms\":0,\"title\":\"\"}",
+      "sha256": "d18564100b6eb3cd0a23acfeda270821be606db36e2ae279cf25457ac43cbc9c",
+      "quota_bytes": 247,
+      "max_entities_at_5gb": 20242914
+    },
+    {
+      "name": "transcript-minimum",
+      "entity_type": "transcript",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "meeting_id": "00000000-0000-0000-0000-000000000000",
+        "generation_id": "00000000-0000-0000-0000-000000000000",
+        "turns": []
+      },
+      "canonical": "{\"generation_id\":\"00000000-0000-0000-0000-000000000000\",\"id\":\"00000000-0000-0000-0000-000000000000\",\"meeting_id\":\"00000000-0000-0000-0000-000000000000\",\"schema_version\":1,\"turns\":[]}",
+      "sha256": "56c90305df4f6b4d98c7d805377ab6e7ab71bf1c5dd407e8f054c6f88d912171",
+      "quota_bytes": 182,
+      "max_entities_at_5gb": 27472527
+    },
+    {
+      "name": "summary-minimum",
+      "entity_type": "summary",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "meeting_id": "00000000-0000-0000-0000-000000000000",
+        "transcript_generation_id": null,
+        "title": "",
+        "sections": [],
+        "chapters": []
+      },
+      "canonical": "{\"chapters\":[],\"id\":\"00000000-0000-0000-0000-000000000000\",\"meeting_id\":\"00000000-0000-0000-0000-000000000000\",\"schema_version\":1,\"sections\":[],\"title\":\"\",\"transcript_generation_id\":null}",
+      "sha256": "47e6441ceda20c1c4014c908fe399496e0f8e0a13a0ee36d50d7e2789ceefbc6",
+      "quota_bytes": 187,
+      "max_entities_at_5gb": 26737967
+    },
+    {
+      "name": "conversation-minimum",
+      "entity_type": "conversation",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "title": "",
+        "created_at_ms": 0,
+        "updated_at_ms": 0,
+        "is_pinned": true,
+        "meeting_id": null
+      },
+      "canonical": "{\"created_at_ms\":0,\"id\":\"00000000-0000-0000-0000-000000000000\",\"is_pinned\":true,\"meeting_id\":null,\"schema_version\":1,\"title\":\"\",\"updated_at_ms\":0}",
+      "sha256": "46b6e923399e843174ab7e734f844a879cbcc93ee1571baa75f0897976344d5b",
+      "quota_bytes": 146,
+      "max_entities_at_5gb": 34246575
+    },
+    {
+      "name": "message-minimum",
+      "entity_type": "message",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "conversation_id": "00000000-0000-0000-0000-000000000000",
+        "role": "user",
+        "content": "",
+        "position": 0,
+        "reply_to_id": null
+      },
+      "canonical": "{\"content\":\"\",\"conversation_id\":\"00000000-0000-0000-0000-000000000000\",\"id\":\"00000000-0000-0000-0000-000000000000\",\"position\":0,\"reply_to_id\":null,\"role\":\"user\",\"schema_version\":1}",
+      "sha256": "a356a03d04ed2c0e3c368976220673b3c2017dfc9569560b58d5791018ac60df",
+      "quota_bytes": 180,
+      "max_entities_at_5gb": 27777777
+    },
+    {
+      "name": "dictation-minimum",
+      "entity_type": "dictation",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "title": "",
+        "text": "",
+        "language": "pt",
+        "timestamp_ms": 0,
+        "duration_ms": 0,
+        "raw_text": "",
+        "previous_text": ""
+      },
+      "canonical": "{\"duration_ms\":0,\"id\":\"00000000-0000-0000-0000-000000000000\",\"language\":\"pt\",\"previous_text\":\"\",\"raw_text\":\"\",\"schema_version\":1,\"text\":\"\",\"timestamp_ms\":0,\"title\":\"\"}",
+      "sha256": "721b8a8fe6905aceb75c8b1f24c6d9d65d38f7dc06dd30bd4186ba62a8c79aaf",
+      "quota_bytes": 167,
+      "max_entities_at_5gb": 29940119
+    },
+    {
+      "name": "translation-minimum",
+      "entity_type": "translation",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "title": "",
+        "source_text": "",
+        "translated_text": "",
+        "source_language": "pt",
+        "target_language": "pt",
+        "timestamp_ms": 0
+      },
+      "canonical": "{\"id\":\"00000000-0000-0000-0000-000000000000\",\"schema_version\":1,\"source_language\":\"pt\",\"source_text\":\"\",\"target_language\":\"pt\",\"timestamp_ms\":0,\"title\":\"\",\"translated_text\":\"\"}",
+      "sha256": "33d65315aba3bf517bc66533277afd78238a75eff1ea3c7872483ebe9c3374b8",
+      "quota_bytes": 176,
+      "max_entities_at_5gb": 28409090
+    },
+    {
+      "name": "folder-minimum",
+      "entity_type": "folder",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": "",
+        "details": "",
+        "created_at_ms": 0
+      },
+      "canonical": "{\"created_at_ms\":0,\"details\":\"\",\"id\":\"00000000-0000-0000-0000-000000000000\",\"name\":\"\",\"schema_version\":1}",
+      "sha256": "5c59f6bce229c4e4ddd856e72f6ccbda4d3497dfdc9edb51f6df3b797a3357a5",
+      "quota_bytes": 105,
+      "max_entities_at_5gb": 47619047
+    },
+    {
+      "name": "note-minimum",
+      "entity_type": "note",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "title": "",
+        "text": "",
+        "meeting_id": null,
+        "created_at_ms": 0,
+        "updated_at_ms": 0
+      },
+      "canonical": "{\"created_at_ms\":0,\"id\":\"00000000-0000-0000-0000-000000000000\",\"meeting_id\":null,\"schema_version\":1,\"text\":\"\",\"title\":\"\",\"updated_at_ms\":0}",
+      "sha256": "32dd8bed82e26c0470ced309167865eef308347f3e967663f2adbdfd18e96ccb",
+      "quota_bytes": 139,
+      "max_entities_at_5gb": 35971223
+    },
+    {
+      "name": "preferences-minimum",
+      "entity_type": "preferences",
+      "payload": {
+        "schema_version": 1,
+        "id": "00000000-0000-0000-0000-000000000000",
+        "interface_language": "en",
+        "appearance": "dark",
+        "selected_language": "pt",
+        "notes_language": "en",
+        "show_confidence": true
+      },
+      "canonical": "{\"appearance\":\"dark\",\"id\":\"00000000-0000-0000-0000-000000000000\",\"interface_language\":\"en\",\"notes_language\":\"en\",\"schema_version\":1,\"selected_language\":\"pt\",\"show_confidence\":true}",
+      "sha256": "619f2af00fca54849df6d802dfc1fd59debc2b6f6194894b993ad6ba8bff08aa",
+      "quota_bytes": 180,
+      "max_entities_at_5gb": 27777777
+    },
+    {
+      "name": "note-unicode",
+      "entity_type": "note",
+      "payload": {
+        "schema_version": 1,
+        "id": "10000000-0000-4000-8000-000000000001",
+        "title": "Reunião 🗣",
+        "text": "Ação\nTab\t / café / é /   / \"quote\"",
+        "meeting_id": null,
+        "created_at_ms": 0,
+        "updated_at_ms": 0
+      },
+      "canonical": "{\"created_at_ms\":0,\"id\":\"10000000-0000-4000-8000-000000000001\",\"meeting_id\":null,\"schema_version\":1,\"text\":\"Ação\\nTab\\t / café / é /   / \\\"quote\\\"\",\"title\":\"Reunião 🗣\",\"updated_at_ms\":0}",
+      "sha256": "76ebe6f4511c12b085b9ef9c77524eaa59f46e081b74cc3012b4e13299cdca36",
+      "quota_bytes": 197
+    }
+  ]
+}

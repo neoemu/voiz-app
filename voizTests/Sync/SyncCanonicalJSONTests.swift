@@ -3,9 +3,9 @@ import Testing
 
 @Suite("Sync canonical JSON and closed contracts")
 struct SyncCanonicalJSONTests {
-    @Test func sharedBackendFixturesMatchBytesHashAndQuota() throws {
+    @Test func legacyFormatFixturesMatchBytesHashAndQuota() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let data = try Data(contentsOf: root.appendingPathComponent("service/sync/fixtures/canonical-v1.json"))
+        let data = try Data(contentsOf: root.appendingPathComponent("voizTests/Fixtures/canonical-v1.json"))
         let object = try #require(try SyncCanonicalJSON.decode(data).object)
         guard case .array(let fixtures) = object["fixtures"] else { Issue.record("Missing shared fixtures"); return }
         #expect(fixtures.count >= 10)
