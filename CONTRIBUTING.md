@@ -1,6 +1,6 @@
 # Contribuir
 
-Este candidato ainda está em preparação privada. Antes da abertura para contribuições públicas, o mantenedor deve escolher a licença do código e confirmar os direitos sobre código e assets existentes.
+Este candidato ainda está em preparação privada. O código do Voiz usa a [licença MIT](LICENSE). Antes da abertura para contribuições públicas, o mantenedor deve confirmar os direitos sobre código e assets existentes.
 
 Prepare um ambiente conforme [build](docs/build.md), crie uma branch e descreva o problema e o comportamento esperado. Use dados sintéticos. Não copie bibliotecas, gravações, preferências, chaves ou sessões pessoais para o projeto ou para testes.
 

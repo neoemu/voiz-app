@@ -146,7 +146,8 @@ def prepare(root: Path, paths: list[dict[str, str]]) -> dict:
         entries.append({'source': source, 'destination': destination,
                         'sha256': hashlib.sha256(data).hexdigest(), 'mode': mode})
     manifest = {'version': 1, 'reviewed': False, 'publication_authorized': False,
-                'license_status': 'pending-owner-decision', 'files': entries}
+                'license_status': ('included-see-LICENSE' if any(e['destination'] == 'LICENSE' for e in entries)
+                                   else 'pending-owner-decision'), 'files': entries}
     validate(root, manifest, require_review=False)
     return manifest
 
