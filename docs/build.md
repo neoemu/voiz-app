@@ -14,7 +14,7 @@ cd voiz-app
 export VOIZ_DEV_TEAM=SEU_TEAM_ID
 ```
 
-Enquanto o repositório permanecer privado, o clone exige acesso concedido no GitHub. A configuração de equipe é local: não edite o projeto para inserir os dados do mantenedor. Os pacotes Swift são fixados no projeto; mantenha `Package.resolved`, o projeto Xcode e `Package.swift` coerentes quando atualizar dependências.
+A configuração de equipe é local: não edite o projeto para inserir os dados do mantenedor. Os pacotes Swift são fixados no projeto; mantenha `Package.resolved`, o projeto Xcode e `Package.swift` coerentes quando atualizar dependências.
 
 ## Compilar e usar o Dev
 

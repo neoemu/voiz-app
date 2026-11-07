@@ -1,6 +1,6 @@
 # Distribuição macOS
 
-O fluxo oficial permanece separado dos builds de contribuidores. Um build Development não precisa das credenciais do mantenedor e mantém o atualizador oficial desabilitado. A preparação deste candidato privado não autoriza distribuir o app ou publicar um feed.
+O fluxo oficial permanece separado dos builds de contribuidores. Um build Development não precisa das credenciais do mantenedor e mantém o atualizador oficial desabilitado. O repositório público não fornece acesso às credenciais nem ao canal de distribuição oficial.
 
 ## Pré-requisitos do mantenedor
 

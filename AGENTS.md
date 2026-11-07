@@ -8,4 +8,4 @@
 - Agrupe mudanças e execute verificações pertinentes no fechamento; repita apenas testes afetados por correções posteriores. Diferencie build, teste, validação funcional, integração e publicação no relatório.
 - Nunca incluir certificados, chaves de API, arquivos de ambiente reais, sessões, gravações, históricos, dumps ou artefatos de build no Git. Exemplos devem conter somente valores sintéticos.
 - Distribuição oficial exige Developer ID, notarização, Gatekeeper e assinatura Sparkle; nenhum build, teste ou merge autoriza publicação. Credenciais e operação de release ficam privadas.
-- Preserve avisos de copyright e licenças de terceiros. A licença principal é MIT, conforme `LICENSE`. A abertura do repositório depende de autorização explícita do mantenedor.
+- Preserve avisos de copyright e licenças de terceiros. O código é aberto sob MIT, conforme `LICENSE`; publicação de versões do app e uso do canal oficial continuam sujeitos ao escopo autorizado pelo mantenedor.

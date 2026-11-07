@@ -2,7 +2,7 @@
 
 Voiz é um app nativo de macOS para gravar, transcrever e organizar conversas. Reúne ditado, reuniões com identificação de falantes, histórico, chat, tradução e exportação, com dados armazenados no seu Mac.
 
-Esta edição funciona sem conta Voiz, ativação comercial, assinatura, sincronização hospedada ou gateway de IA do Voiz. O código usa a [licença MIT](LICENSE). A fonte está em [neoemu/voiz-app](https://github.com/neoemu/voiz-app); o acesso ao repositório ainda está restrito durante a preparação da abertura.
+Esta edição funciona sem conta Voiz, ativação comercial, assinatura, sincronização hospedada ou gateway de IA do Voiz. O código é aberto sob a [licença MIT](LICENSE), em [neoemu/voiz-app](https://github.com/neoemu/voiz-app).
 
 ## O que você pode fazer
 
@@ -18,7 +18,7 @@ A transcrição e a identificação de falantes usam modelos locais; alguns prec
 
 Requisitos: **Mac com Apple Silicon**, **macOS 26 ou posterior**, Xcode com SDK de macOS 26 e Swift 6.2 ou posterior, Python 3 e certificado **Apple Development** da sua equipe no Keychain.
 
-Com acesso ao repositório:
+Clone o repositório e compile o app:
 
 ```sh
 git clone https://github.com/neoemu/voiz-app.git
