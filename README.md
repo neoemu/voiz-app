@@ -1,24 +1,59 @@
-# Voiz
+<div align="center">
+  <img src="voiz/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="96" alt="Ícone do Voiz">
+  <h1>Voiz</h1>
+  <p><strong>Sua voz, suas notas, no seu Mac.</strong></p>
+  <p>Ditado, reuniões e tradução em um app nativo de macOS.<br>Transcrição local. Código aberto. Sem conta Voiz ou assinatura.</p>
+  <p>
+    <a href="https://github.com/neoemu/voiz-app/releases/latest">Baixar para macOS</a> ·
+    <a href="#recursos">Recursos</a> ·
+    <a href="#privacidade-e-ia">Privacidade</a> ·
+    <a href="docs/build.md">Compilar o código</a>
+  </p>
+  <p><strong>Apple Silicon</strong> · macOS 26 ou posterior · <a href="LICENSE">MIT</a></p>
+</div>
 
-Voiz é um app nativo de macOS para gravar, transcrever e organizar conversas. Reúne ditado, reuniões com identificação de falantes, histórico, chat, tradução e exportação, com dados armazenados no seu Mac.
+## Instalação
 
-Esta edição funciona sem conta Voiz, ativação comercial, assinatura, sincronização hospedada ou gateway de IA do Voiz. O código é aberto sob a [licença MIT](LICENSE), em [neoemu/voiz-app](https://github.com/neoemu/voiz-app).
+1. Baixe o arquivo **`.dmg`** na [página de releases](https://github.com/neoemu/voiz-app/releases/latest).
+2. Abra o instalador e arraste **Voiz** para **Aplicativos**.
+3. Abra o Voiz e conceda as permissões dos recursos que você quiser usar.
 
-## O que você pode fazer
+Os pacotes oficiais são assinados com **Developer ID** e notarizados pela Apple. Você não precisa de Xcode, Apple Developer ou ferramentas de programação para instalar o app. O primeiro uso de alguns motores de transcrição requer o download dos modelos.
 
-- **Reuniões:** gravar microfone e áudio do sistema, transcrever, identificar falantes, rever trechos e organizar notas.
-- **Ditado:** falar pelo atalho configurado e inserir o texto no aplicativo em uso, com histórico local.
-- **Tradução:** escolher os idiomas, gravar e acompanhar a transcrição e a tradução por trechos de fala.
-- **Chat e resumos:** trabalhar com suas notas usando um provedor de IA configurado por você.
-- **Bibliotecas:** manter reuniões, chats e áudios locais, consultar lixeira e conflitos e exportar os textos disponíveis.
+**Compatibilidade:** Mac com chip M1 ou posterior e macOS 26 ou posterior. Esta edição não oferece suporte a Macs Intel.
 
-A transcrição e a identificação de falantes usam modelos locais; alguns precisam ser baixados antes do primeiro uso. Chat, resumos e tradução usam o provedor escolhido em Configurações, com sua própria chave ou endpoint compatível. Provedores externos recebem o conteúdo enviado para processamento e podem cobrar pelo uso. Downloads de modelos, integrações externas e o canal oficial de atualização também usam rede.
+> Já usa uma versão anterior? Preserve uma cópia de segurança dos seus dados e leia o [guia de migração](docs/data-migration.md). Esta edição abre os dados já baixados, mas não busca conteúdo que esteja somente no antigo serviço de Sync.
 
-## Começar pelo código
+## Recursos
 
-Requisitos: **Mac com Apple Silicon**, **macOS 26 ou posterior**, Xcode com SDK de macOS 26 e Swift 6.2 ou posterior, Python 3 e certificado **Apple Development** da sua equipe no Keychain.
+| | O que o Voiz faz |
+| --- | --- |
+| **Ditado** | Transcreva sua voz e insira o texto no aplicativo em uso pelo atalho configurado. |
+| **Reuniões** | Grave microfone e áudio do sistema, identifique falantes e reveja a transcrição junto do áudio. |
+| **Notas e resumos** | Organize conversas, capítulos e ações com ajuda do provedor de IA escolhido por você. |
+| **Tradução** | Acompanhe a transcrição e a tradução em trechos delimitados por pausas na fala. |
+| **Chat** | Consulte suas notas e reuniões em uma conversa com IA. |
+| **Biblioteca local** | Mantenha histórico, gravações e textos no Mac, com consulta e exportação. |
+| **Integrações** | Use calendários do macOS, exportação para Notion e um servidor MCP local opcional. |
 
-Clone o repositório e compile o app:
+## Privacidade e IA
+
+A transcrição e a identificação de falantes usam modelos locais. O Voiz não exige conta própria, ativação comercial ou assinatura, e não sincroniza suas bibliotecas com servidores Voiz.
+
+**Chat, resumos e tradução usam sua própria configuração de IA.** Em **Configurações → IA & Tradução**, escolha OpenAI, Anthropic, Google Gemini, xAI ou um endpoint compatível. Esses serviços podem receber os textos enviados para processamento e cobrar pelo uso; suas chaves e custos pertencem à sua conta no provedor.
+
+Downloads de modelos, integrações externas e a busca de atualizações também usam rede. O servidor MCP é opcional e restrito ao próprio Mac. As bibliotecas locais permanecem separadas e podem ser consultadas sem uma conta Voiz.
+
+## Primeiros passos
+
+- **Reuniões:** clique em **Iniciar gravação**. Autorize o microfone e, para captar os participantes de chamadas, a permissão de **Gravação de Tela** indicada pelo macOS. Use **Parar** ao concluir.
+- **Ditado:** confira o atalho na tela **Ditado** e ajuste idioma e motor em **Configurações**. A inserção de texto em outros apps exige a permissão de **Acessibilidade**.
+- **Tradução:** configure seu provedor de IA, selecione os idiomas e clique em **Gravar**. O resultado fica em **Recentes** depois de parar.
+- **Bibliotecas:** em **Perfil → Bibliotecas neste Mac**, escolha uma biblioteca existente ou use **Abrir ou criar**. A exportação de textos não inclui os arquivos de áudio.
+
+## Desenvolvimento
+
+O código está disponível sob MIT. Para compilar, você precisa de Xcode com SDK de macOS 26, Swift 6.2 ou posterior, Python 3 e um certificado Apple Development da sua equipe.
 
 ```sh
 git clone https://github.com/neoemu/voiz-app.git
@@ -27,24 +62,16 @@ export VOIZ_DEV_TEAM=SEU_TEAM_ID
 make dev
 ```
 
-`make dev` compila, verifica a assinatura, instala em `/Applications/Voiz Dev.app` e abre o app. O Dev tem identidade, permissões e dados separados do app oficial; seu atualizador oficial fica desabilitado. Você não precisa de credenciais da infraestrutura Voiz ou da distribuição oficial. Para compilar sem instalar, use `make dev-build`.
+Esse comando instala **Voiz Dev**, com identidade, permissões e dados separados do app oficial e atualizador desabilitado. Para apenas compilar, use `make dev-build`. Consulte o [guia de build e testes](docs/build.md) e as [instruções de contribuição](CONTRIBUTING.md).
 
-Veja [build e testes](docs/build.md) para configurar a assinatura, escolher testes e atualizar sua instalação Dev.
+## Documentação e suporte
 
-## Primeiro uso
+- [Bibliotecas e migração de versões anteriores](docs/data-migration.md)
+- [Build e testes](docs/build.md)
+- [Distribuição assinada e notarizada](docs/distribution.md)
+- [Relatar um problema](https://github.com/neoemu/voiz-app/issues)
+- [Relatar uma vulnerabilidade em privado](SECURITY.md)
 
-1. Conclua a apresentação e informe o nome do seu perfil local.
-2. Em **Configurações → Ditado**, escolha o idioma. Em **Transcrição**, escolha o motor e, quando disponível, o modelo. Aguarde os downloads necessários.
-3. Em **Reuniões**, use **Iniciar gravação**. Autorize o microfone quando solicitado; para capturar os participantes de uma chamada, conceda a permissão de **Gravação de Tela** indicada pelo app. Ao terminar, use **Parar** e aguarde o processamento.
-4. Para ditar em outro aplicativo, siga o atalho exibido na tela **Ditado**. Os atalhos podem ser ajustados em **Configurações → Ditado**; a inserção de texto também exige **Acessibilidade**.
-5. Para usar chat, resumos ou tradução, configure **Configurações → IA & Tradução**. Escolha o provedor e informe sua chave; para um serviço compatível, preencha endpoint e nome do modelo. Em **Tradução**, escolha os idiomas e use **Gravar**; ao parar, o resultado vai para **Recentes**.
+## Licença
 
-O macOS concede permissões separadamente ao Voiz Dev e ao app oficial. A tradução prepara seu detector local de fala antes de abrir o microfone e processa trechos delimitados por pausas; o provedor escolhido continua responsável pela tradução.
-
-## Dados, contribuição e distribuição
-
-Em **Perfil → Bibliotecas neste Mac**, selecione uma biblioteca existente ou use **Abrir ou criar** para a biblioteca local independente. Uma cópia antiga já baixada continua acessível sem login, mas não comprova que todo o conteúdo remoto esteja neste Mac. Leia [bibliotecas e migração](docs/data-migration.md) antes de trabalhar com dados de uma instalação anterior.
-
-O repositório contém o cliente macOS, seus testes e ferramentas de build. Backend de conta, Sync, pagamentos e administração da nuvem antiga não fazem parte desta edição. Mantenha uma cópia de segurança dos seus dados locais.
-
-Para contribuir, veja [CONTRIBUTING.md](CONTRIBUTING.md) e a [política de segurança](SECURITY.md). Dependências e modelos têm termos próprios, preservados nos [avisos de terceiros](THIRD_PARTY_NOTICES.md). O empacotamento oficial segue o guia de [distribuição macOS](docs/distribution.md); compilar a fonte não publica uma versão do aplicativo.
+O código e o ícone do Voiz usam a [licença MIT](LICENSE). Dependências e modelos mantêm suas próprias licenças e atribuições; consulte os [avisos de terceiros](THIRD_PARTY_NOTICES.md).

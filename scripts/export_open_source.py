@@ -103,6 +103,9 @@ def allowed_destination(value: str) -> PurePosixPath:
         return path
     if len(path.parts) == 2 and path.parts[0] == 'docs' and path.name in SAFE_DOCS:
         return path
+    if (len(path.parts) == 3 and path.parts[:2] == ('docs', 'release-notes')
+            and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+\.html', path.name)):
+        return path
     if path.parts[0] == 'ThirdPartyNotices' and path.suffix in {'.txt', '.md'}:
         return path
     if value in {'.github/workflows/ci.yml', 'Config/dmg/settings.py'}:
