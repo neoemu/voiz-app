@@ -7,6 +7,10 @@ import re
 import subprocess
 import sys
 
+# Keep loading independent of the caller's cwd (including importlib-based tests).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from verify_bundle_licenses import verify_bundle_licenses
+
 
 def verify_application_architecture(app: pathlib.Path):
     with (app / "Contents/Info.plist").open("rb") as stream:
@@ -24,6 +28,7 @@ def verify_application_architecture(app: pathlib.Path):
 def verify(app: pathlib.Path, team: str):
     if not re.fullmatch(r"[A-Z0-9]{10}", team):
         raise ValueError("Team ID inválido")
+    verify_bundle_licenses(app)
     verify_application_architecture(app)
     subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
     framework = app / "Contents/Frameworks/Sparkle.framework"
@@ -68,4 +73,4 @@ if __name__ == "__main__":
         verify(pathlib.Path(sys.argv[1]), sys.argv[2])
     except (ValueError, OSError, subprocess.CalledProcessError, IndexError) as error:
         sys.exit(f"Distribuição bloqueada: {error}")
-    print("Apple Silicon, assinatura Developer ID, helpers e canal de atualizações verificados.")
+    print("Licenças, Apple Silicon, assinatura Developer ID, helpers e canal de atualizações verificados.")

@@ -9,7 +9,7 @@ As licenças abaixo pertencem aos respectivos componentes e não definem a licen
 | [Sparkle](https://github.com/sparkle-project/Sparkle/tree/eef1a539a373c1f1a320624b1130fc5de7b2e100) | 2.10.0 · `eef1a539a373c1f1a320624b1130fc5de7b2e100` | Licença permissiva de estilo MIT; o arquivo inclui copyrights e licenças de bsdiff, sais-lite e demais componentes incorporados. Texto `Sparkle-LICENSE.txt`. |
 | [Swift Argument Parser](https://github.com/apple/swift-argument-parser/tree/6a52f3251125d74daf04fcbd5e6f08a75d074382) | 1.8.2 · `6a52f3251125d74daf04fcbd5e6f08a75d074382` | Apache-2.0 com Swift Runtime Library Exception. Texto `ArgumentParser-LICENSE.txt`. |
 
-Esses textos foram obtidos dos checkouts exatamente nas revisões acima. Ao atualizar um pacote, confira novamente sua licença, componentes incorporados e avisos. A distribuição binária precisa carregar os avisos exigidos, além de preservar os presentes em frameworks.
+Esses textos foram obtidos dos checkouts exatamente nas revisões acima. Ao atualizar um pacote, confira novamente sua licença, componentes incorporados e avisos. O projeto Xcode inclui `LICENSE`, este inventário e a pasta `ThirdPartyNotices/` em `Contents/Resources/` do app, tanto no Dev quanto no Release, além dos avisos presentes nos frameworks. A verificação de distribuição exige que esses arquivos correspondam byte a byte à fonte usada no pacote.
 
 ## Modelos baixados separadamente
 

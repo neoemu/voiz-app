@@ -7,12 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        AAB000102F43000000000001 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = AAB000112F43000000000001 /* LICENSE */; };
+        AAB000122F43000000000001 /* THIRD_PARTY_NOTICES.md in Resources */ = {isa = PBXBuildFile; fileRef = AAB000132F43000000000001 /* THIRD_PARTY_NOTICES.md */; };
+        AAB000142F43000000000001 /* ThirdPartyNotices in Resources */ = {isa = PBXBuildFile; fileRef = AAB000152F43000000000001 /* ThirdPartyNotices */; };
         AAB000012F43000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAB000032F43000000000001 /* Sparkle */; };
 		94ABEA922EA8750A00E9F1C2 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 94ABEA912EA8750A00E9F1C2 /* WhisperKit */; };
 		FA0001A12EA8750A00E9F1C2 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = FA0002A12EA8750A00E9F1C2 /* FluidAudio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        AAB000112F43000000000001 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+        AAB000132F43000000000001 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
+        AAB000152F43000000000001 /* ThirdPartyNotices */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ThirdPartyNotices; sourceTree = "<group>"; };
 		94ABEA492EA86EF500E9F1C2 /* voiz.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = voiz.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E5100022F1100000000A002 /* voizTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = voizTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -164,6 +170,9 @@
 		94ABEA402EA86EF500E9F1C2 = {
 			isa = PBXGroup;
 			children = (
+				AAB000112F43000000000001 /* LICENSE */,
+				AAB000132F43000000000001 /* THIRD_PARTY_NOTICES.md */,
+				AAB000152F43000000000001 /* ThirdPartyNotices */,
 				94ABEA4B2EA86EF500E9F1C2 /* voiz */,
 				7E5100032F1100000000A003 /* voizTests */,
 				94ABEA4A2EA86EF500E9F1C2 /* Products */,
@@ -286,6 +295,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAB000102F43000000000001 /* LICENSE in Resources */,
+				AAB000122F43000000000001 /* THIRD_PARTY_NOTICES.md in Resources */,
+				AAB000142F43000000000001 /* ThirdPartyNotices in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

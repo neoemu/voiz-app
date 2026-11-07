@@ -26,6 +26,12 @@ make distribution
 
 `scripts/distribute.sh` prepara um archive Release, valida Developer ID/Hardened Runtime, submete à notarização Apple e exige aprovação. Depois anexa o ticket, valida Gatekeeper, cria ZIP, assina o catálogo Sparkle e verifica as assinaturas. `scripts/package_dmg.py` prepara um DMG assinado e notarizado com `Config/dmg/settings.py`. O resultado fica em um diretório novo de `build/Distribution/`.
 
+O Xcode incorpora a licença MIT, `THIRD_PARTY_NOTICES.md` e a pasta `ThirdPartyNotices/` diretamente da fonte em `Contents/Resources/` antes de assinar o app. A verificação de distribuição recusa licenças ausentes, alteradas ou substituídas por links simbólicos. Não acrescente ou edite esses arquivos depois de assinar: gere novamente o pacote a partir da fonte correta. Para conferir somente os avisos de um app, sem notarização ou acesso à rede:
+
+```sh
+python3 scripts/verify_bundle_licenses.py /caminho/para/voiz.app
+```
+
 A notarização comunica-se com a Apple; ela não publica o app. Os scripts de empacotamento não instalam sobre o app oficial nem enviam arquivos ao site. Não há fallback para assinatura ad hoc, retirada da quarentena ou desativação de verificação.
 
 Antes de qualquer distribuição, registre fonte, versão/build, resultados da assinatura/notarização/Gatekeeper e assinatura do appcast. Teste instalação e atualização em ambiente separado com dados sintéticos, incluindo preservação de dados/permissões e recusa de pacotes adulterados. Validar um ZIP ou gerar um feed não comprova o funcionamento da atualização.

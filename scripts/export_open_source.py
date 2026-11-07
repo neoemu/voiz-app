@@ -35,9 +35,10 @@ ROOT_FILES = {'README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'SECURITY.md',
               '.gitignore', 'Makefile', 'Package.swift', 'Package.resolved'}
 SAFE_SCRIPTS = {'dev.py', 'dev_app_control.swift', 'distribute.sh', 'package_dmg.py',
                 'sign_sparkle.sh', 'verify_sparkle.swift', 'verify_distribution.py',
-                'export_open_source.py'}
+                'export_open_source.py', 'verify_bundle_licenses.py'}
 SAFE_SCRIPT_TESTS = {'test_dev_workflow.py', 'test_sparkle_distribution.py',
-                    'test_distribution_architecture.py', 'test_export_open_source.py'}
+                    'test_distribution_architecture.py', 'test_export_open_source.py',
+                    'test_bundle_licenses.py'}
 SAFE_CONFIG = {'AppInfo.plist', 'Development.xcconfig', 'Development.local.xcconfig.example',
                'distribution.env.example', 'ExportOptions.plist', 'TestInfo.plist'}
 MATERIALIZED_SEAMS = {
