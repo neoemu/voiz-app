@@ -4,6 +4,21 @@ import Testing
 @Suite("Sync safe local model adapters")
 @MainActor
 struct SyncDTOAdapterTests {
+    /// Older Whisper meetings stored avg log-probabilities (negative) as confidence. One such
+    /// turn must not block the whole local library from opening for writes.
+    @Test func transcriptNormalizesLegacyLogProbabilityConfidence() throws {
+        func turn(_ confidence: Float) -> MeetingTurn {
+            MeetingTurn(source: .microphone, speakerName: "Speaker", text: "Synthetic", startTime: 0, endTime: 1, confidence: confidence)
+        }
+        var session = MeetingSession(title: "Synthetic legacy confidence")
+        session.turns = [turn(-0.25), turn(-14.1), turn(0.5), turn(1.5), turn(.nan), turn(-.infinity)]
+        let document = try SyncDTOAdapter.transcript(session, generationID: UUID())
+        guard case .array(let turns) = document.value.object?["turns"] else { Issue.record("missing turns"); return }
+        let points = turns.map { $0.object?["confidence_basis_points"]?.integer }
+        #expect(points == [7_788, 0, 5_000, 10_000, 0, 0])
+        _ = try document.canonicalData()
+    }
+
     @Test func meetingExportsPortableFieldsAndKeepsAudioLocalOnRestore() throws {
         var session = MeetingSession(title: "Synthetic meeting", notes: "Allowed note")
         session.audioFiles = [.microphone: "PRIVATE_AUDIO_PATH"]

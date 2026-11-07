@@ -34,6 +34,24 @@ struct LocalLibraryMigrationTests {
         }
     }
 
+    @Test func legacyLogProbabilityConfidenceDoesNotBlockLocalLibrary() throws {
+        let root = try temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        do {
+        var meeting = MeetingSession(title: "Synthetic Whisper legacy")
+        meeting.turns = [MeetingTurn(source: .microphone, speakerName: "Speaker", text: "Synthetic", startTime: 0, endTime: 1, confidence: -0.25)]
+        let meetingURL = root.appendingPathComponent("Meetings/\(meeting.id.uuidString)/session.json")
+        try write(meeting, to: meetingURL)
+        let original = try Data(contentsOf: meetingURL)
+        let runtime = LocalLibraryRuntime(rootURL: root)
+        #expect(runtime.canStartNewWorkInLibrary)
+        #expect(runtime.lastError == nil)
+        #expect(try Data(contentsOf: meetingURL) == original)
+        let persistence = try #require(runtime.persistence)
+        #expect(try persistence.index.entity(type: .transcript, id: meeting.id.uuidString.lowercased()) != nil)
+        try persistence.saveMeeting(meeting)
+        }
+    }
+
     @Test(arguments: [false, true])
     func legacyMeetingAndChatKeepIDsAudioAndSourceBytesOnRepeatedMigration(missingAudio: Bool) throws {
         let root = try temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }

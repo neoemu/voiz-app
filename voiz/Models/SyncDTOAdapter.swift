@@ -21,12 +21,11 @@ enum SyncDTOAdapter {
         try document(.transcript, id: session.id, [
             "meeting_id": uuid(session.id), "generation_id": uuid(generationID),
             "turns": .array(try session.turns.map { turn in
-                guard turn.confidence.isFinite, (0...1).contains(turn.confidence) else { throw SyncWireError.invalidNumber }
-                return .object([
+                .object([
                     "id": uuid(turn.id), "source": source(turn.source), "speaker_id": optionalString(turn.speakerId),
                     "speaker_name": .string(turn.speakerName), "text": .string(turn.text),
                     "start_ms": .integer(try milliseconds(turn.startTime)), "end_ms": .integer(try milliseconds(turn.endTime)),
-                    "confidence_basis_points": .integer(Int64((Double(turn.confidence) * 10_000).rounded()))
+                    "confidence_basis_points": .integer(Int64((portableConfidence(turn.confidence) * 10_000).rounded()))
                 ])
             })
         ])
@@ -221,6 +220,14 @@ enum SyncDTOAdapter {
     static func folderValue(_ document: SyncDocument) throws -> MeetingFolder {
         let fields = try fields(document, type: .folder)
         return MeetingFolder(id: UUID(uuidString: document.entityID)!, name: fields["name"]!.string!, details: fields["details"]!.string!, createdAt: date(fields["created_at_ms"]!))
+    }
+
+    /// Whisper reports an average log-probability (≤ 0); older meetings stored it as-is.
+    /// Map it to a probability so one legacy turn never blocks the library; source JSON is untouched.
+    static func portableConfidence(_ value: Float) -> Double {
+        guard value.isFinite else { return 0 }
+        let confidence = Double(value)
+        return confidence < 0 ? exp(confidence) : min(confidence, 1)
     }
 
     static func milliseconds(_ value: TimeInterval) throws -> Int64 {
