@@ -7,7 +7,8 @@
     <a href="https://github.com/neoemu/voiz-app/releases/latest">Baixar para macOS</a> ·
     <a href="#recursos">Recursos</a> ·
     <a href="#privacidade-e-ia">Privacidade</a> ·
-    <a href="docs/build.md">Compilar o código</a>
+    <a href="docs/build.md">Compilar o código</a> ·
+    <a href="https://voizdev.mintlify.site/">Documentação</a>
   </p>
   <p><strong>Apple Silicon</strong> · macOS 26 ou posterior · <a href="LICENSE">MIT</a></p>
 </div>
@@ -19,6 +20,8 @@
 3. Abra o Voiz e conceda as permissões dos recursos que você quiser usar.
 
 Os pacotes oficiais são assinados com **Developer ID** e notarizados pela Apple. Você não precisa de Xcode, Apple Developer ou ferramentas de programação para instalar o app. O primeiro uso de alguns motores de transcrição requer o download dos modelos.
+
+O download também está em [voiz.dev](https://voiz.dev/). Instalações oficiais recebem as atualizações pelo canal integrado ao app.
 
 **Compatibilidade:** Mac com chip M1 ou posterior e macOS 26 ou posterior. Esta edição não oferece suporte a Macs Intel.
 
