@@ -32,6 +32,6 @@ Essa exportação **não inclui áudio** e não substitui um backup dos dados do
 
 Uma biblioteca de conta anterior contém somente o que já estava disponível neste Mac. Não é possível concluir, apenas pela sua presença, que todas as reuniões, mensagens ou gravações remotas foram baixadas.
 
-Os antigos serviços de Sync foram desativados em 7 de novembro de 2026. Esta edição não busca arquivos remotos. Preserve sua cópia local até conferir os itens e os áudios necessários. Se precisar de conteúdo que não esteja neste Mac, entre em contato pelo [suporte](https://voiz.dev/suporte) para avaliar a recuperação a partir dos dados preservados; não envie gravações ou credenciais em uma issue pública.
+Os antigos serviços de Sync foram desativados em 7 de novembro de 2026. Esta edição não busca arquivos remotos. Preserve sua cópia local até conferir os itens e os áudios necessários. Não presuma que os arquivos exclusivamente remotos estejam presentes na biblioteca local. Não publique gravações ou credenciais em issues.
 
 Uma atualização oficial também precisa preservar a identidade do aplicativo e o acesso aos dados existentes. O ensaio de atualização a partir da versão distribuída é separado do build Dev e está descrito no [guia de distribuição](distribution.md).
