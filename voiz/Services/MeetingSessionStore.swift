@@ -68,6 +68,13 @@ final class MeetingSessionStore: ObservableObject {
         }
     }
 
+    /// A reunião existe nesta biblioteca, ainda que na lixeira do Sync, onde `save` a recusaria.
+    func hasRecord(forSession id: UUID) -> Bool {
+        if sessions.contains(where: { $0.id == id }) { return true }
+        guard let sync else { return false }
+        return (try? sync.index.entity(type: .meeting, id: id.uuidString.lowercased())) != nil
+    }
+
     func delete(_ session: MeetingSession) {
         if let sync {
             do { try sync.trash(type: .meeting, id: session.id); sessions.removeAll { $0.id == session.id }; storageError = nil }

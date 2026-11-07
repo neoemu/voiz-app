@@ -37,7 +37,7 @@ O download também está em [voiz.dev](https://voiz.dev/). Instalações oficiai
 | **Tradução** | Acompanhe a transcrição e a tradução em trechos delimitados por pausas na fala. |
 | **Chat** | Consulte suas notas e reuniões em uma conversa com IA. |
 | **Biblioteca local** | Mantenha histórico, gravações e textos no Mac, com consulta e exportação. |
-| **Integrações** | Use calendários do macOS, exportação para Notion e um servidor MCP local opcional. |
+| **Integrações** | Use calendários do macOS, exportação para Notion, importação do Granola e um servidor MCP local opcional. |
 
 ## Privacidade e IA
 

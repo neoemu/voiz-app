@@ -110,7 +110,7 @@ struct ContentView: View {
                     case 5:
                         VoizProfileView()
                     case 6:
-                        VoizSettingsView(calendarService: meetingViewModel.calendarService) {
+                        VoizSettingsView(calendarService: meetingViewModel.calendarService, meetingStore: meetingViewModel.store) {
                             selectedTab = 5
                         }
                     default:

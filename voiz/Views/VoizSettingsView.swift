@@ -5,6 +5,7 @@ struct VoizSettingsView: View {
     @Environment(\.voizCompactLayout) private var compactLayout
     @EnvironmentObject var viewModel: TranscriptionViewModel
     @ObservedObject var calendarService: MeetingCalendarService
+    let meetingStore: MeetingSessionStore
     let onOpenProfile: () -> Void
     @ObservedObject private var updater = AppUpdateService.shared
     @ObservedObject private var hotKeyEngine = DictationHotKeyService.shared
@@ -34,6 +35,7 @@ struct VoizSettingsView: View {
                 CalendarSettingsGroupView(service: calendarService)
                 MCPSettingsGroupView()
                 notionGroup
+                GranolaImportSettingsGroup(store: meetingStore)
                 aiGroup
                 permissionsGroup
                 aboutGroup
