@@ -25,4 +25,4 @@ Os downloads atuais usam referências mutáveis de upstream. Este inventário n�
 
 ## Código e assets do Voiz
 
-Os cabeçalhos de copyright existentes no código foram preservados. O ícone do app (waveform branca sobre fundo roxo/índigo) veio do histórico do projeto; a confirmação de direitos para publicação é responsabilidade do mantenedor antes da abertura. Os elementos de interface do sistema usam SF Symbols via APIs da Apple; não há pacote de fontes ou conjunto de símbolos da Apple redistribuído nesta exportação.
+O código próprio do Voiz e o ícone do app (waveform branca sobre fundo roxo/índigo) são disponibilizados sob a [licença MIT](LICENSE). O mantenedor confirmou a inclusão do ícone sob essa licença. Os cabeçalhos de copyright existentes foram preservados. Os elementos de interface do sistema usam SF Symbols via APIs da Apple; não há pacote de fontes ou conjunto de símbolos da Apple redistribuído neste repositório.

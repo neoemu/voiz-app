@@ -567,6 +567,13 @@ struct VoizSettingsView: View {
                     .foregroundColor(VoizTheme.mutedText)
             }
             SettingsDivider()
+            SettingsRow(icon: "chevron.left.forwardslash.chevron.right", title: "GitHub") {
+                Link(destination: URL(string: "https://github.com/neoemu/voiz-app")!) {
+                    Text(verbatim: "neoemu/voiz-app")
+                }
+                .buttonStyle(GranolaPillButtonStyle())
+            }
+            SettingsDivider()
             SettingsRow(icon: "arrow.triangle.2.circlepath", title: "Buscar atualizações automaticamente",
                         subtitle: updater.isConfigured ? nil : "Indisponível nesta versão") {
                 settingsToggle(Binding(

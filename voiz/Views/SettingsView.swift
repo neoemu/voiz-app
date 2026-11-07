@@ -316,11 +316,11 @@ struct SettingsView: View {
                 HStack {
                     Text("Versão")
                     Spacer()
-                    Text("1.0.0")
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
                         .foregroundColor(.secondary)
                 }
                 
-                Link("GitHub", destination: URL(string: "https://github.com")!)
+                Link("GitHub", destination: URL(string: "https://github.com/neoemu/voiz-app")!)
             }
         }
         .formStyle(.grouped)
