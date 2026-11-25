@@ -600,7 +600,9 @@ final class SyncLibraryPersistence {
             try write(encoder.encode(meeting), to: meetingURL(uuid))
         case .folder:
             var folders: [MeetingFolder] = try readOptional([MeetingFolder].self, from: meetingsURL.appendingPathComponent("folders.json")) ?? []
-            let folder = try SyncDTOAdapter.folderValue(entity.document)
+            let existingExpected = folders.first(where: { $0.id == uuid })?.expectedParticipants
+            var folder = try SyncDTOAdapter.folderValue(entity.document)
+            folder.expectedParticipants = existingExpected
             folders.removeAll { $0.id == uuid }; folders.append(folder)
             try write(encoder.encode(folders), to: meetingsURL.appendingPathComponent("folders.json"))
         case .dictation:

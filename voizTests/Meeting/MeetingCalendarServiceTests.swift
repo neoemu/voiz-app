@@ -191,6 +191,44 @@ struct MeetingCalendarServiceTests {
         #expect(settings.calendarSelection == MeetingCalendarSelection())
         #expect(settings.openAIKey == "keep-me")
     }
+
+    @Test("Extrai outros participantes sem duplicatas e encontra o evento ativo no horário")
+    func extractsOtherAttendeesAndMatchesActiveEvent() {
+        let (service, reader) = fixture()
+        let active = CalendarEvent(
+            id: "active-daily",
+            title: "Daily Time",
+            startDate: now.addingTimeInterval(-300),
+            endDate: now.addingTimeInterval(1500),
+            hasVideoLink: true,
+            calendarID: work.id,
+            attendees: [
+                CalendarAttendee(name: "Marina Rocha", isCurrentUser: true, isOrganizer: false),
+                CalendarAttendee(name: "Ana Silva", isCurrentUser: false, isOrganizer: true),
+                CalendarAttendee(name: "ana silva", isCurrentUser: false, isOrganizer: false),
+                CalendarAttendee(name: "Bruno Costa", isCurrentUser: false, isOrganizer: false)
+            ]
+        )
+        let upcoming = CalendarEvent(
+            id: "later",
+            title: "Planning",
+            startDate: now.addingTimeInterval(600),
+            endDate: now.addingTimeInterval(2400),
+            hasVideoLink: true,
+            calendarID: work.id
+        )
+        reader.records = [
+            MeetingCalendarRecord(event: upcoming, hasOtherAttendees: true),
+            MeetingCalendarRecord(event: active, hasOtherAttendees: true)
+        ]
+
+        service.configure(enabled: true, selection: .init())
+        service.refresh(now: now)
+
+        #expect(active.otherAttendeeNames == ["Ana Silva", "Bruno Costa"])
+        #expect(service.matchingEvent(at: now)?.id == "active-daily")
+        #expect(service.detectedMeeting?.attendees.count == 4)
+    }
 }
 
 @MainActor

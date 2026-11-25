@@ -92,8 +92,13 @@ final class MeetingSessionStore: ObservableObject {
     // MARK: - Pastas
 
     @discardableResult
-    func createFolder(name: String, details: String = "") -> MeetingFolder {
-        let folder = MeetingFolder(name: name, details: details)
+    func createFolder(name: String, details: String = "", expectedParticipants: [String]? = nil) -> MeetingFolder {
+        let normalized = expectedParticipants.map(MeetingParticipantMemory.normalizeExpectedParticipants)
+        let folder = MeetingFolder(
+            name: name,
+            details: details,
+            expectedParticipants: (normalized?.isEmpty == false) ? normalized : nil
+        )
         folders.append(folder)
         folders.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         saveFolders(changed: [folder])

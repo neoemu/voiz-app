@@ -37,6 +37,7 @@ final class EventKitCalendarReader: MeetingCalendarReading {
             let source = Self.calendar(calendar)
             let title = (event.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let attendees = event.attendees ?? []
+            let extractedAttendees = Self.extractAttendees(from: attendees, organizer: event.organizer)
             return MeetingCalendarRecord(
                 event: CalendarEvent(
                     // Preserve existing preparation references. EventKit's local event identifier
@@ -46,7 +47,8 @@ final class EventKitCalendarReader: MeetingCalendarReading {
                     startDate: startDate, endDate: endDate,
                     hasVideoLink: Self.hasVideoLink(event),
                     calendarID: source.id, calendarTitle: source.title,
-                    accountTitle: source.accountTitle, color: source.color
+                    accountTitle: source.accountTitle, color: source.color,
+                    attendees: extractedAttendees
                 ),
                 isAllDay: event.isAllDay,
                 isCanceled: event.status == .canceled,
@@ -54,6 +56,82 @@ final class EventKitCalendarReader: MeetingCalendarReading {
                 hasOtherAttendees: attendees.contains { !$0.isCurrentUser && $0.participantStatus != .declined }
             )
         }
+    }
+
+    private static func extractAttendees(from participants: [EKParticipant], organizer: EKParticipant?) -> [CalendarAttendee] {
+        var result: [CalendarAttendee] = []
+        var indexByKey: [String: Int] = [:]
+
+        func appendParticipant(_ participant: EKParticipant, isOrganizer: Bool) {
+            guard participant.participantStatus != .declined else { return }
+            guard participant.participantType == .person || participant.participantType == .unknown else { return }
+            guard let name = resolvedParticipantName(participant) else { return }
+            let key = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+                .split(whereSeparator: \.isWhitespace)
+                .joined(separator: " ")
+            guard !key.isEmpty else { return }
+
+            if let existingIndex = indexByKey[key] {
+                if participant.isCurrentUser { result[existingIndex].isCurrentUser = true }
+                if isOrganizer { result[existingIndex].isOrganizer = true }
+            } else {
+                indexByKey[key] = result.count
+                result.append(CalendarAttendee(
+                    name: name,
+                    isCurrentUser: participant.isCurrentUser,
+                    isOrganizer: isOrganizer
+                ))
+            }
+        }
+
+        for participant in participants {
+            let isOrg = organizer != nil && participant == organizer
+            appendParticipant(participant, isOrganizer: isOrg)
+        }
+        if let organizer {
+            appendParticipant(organizer, isOrganizer: true)
+        }
+        return result
+    }
+
+    private static func resolvedParticipantName(_ participant: EKParticipant) -> String? {
+        if let raw = participant.name?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            let stripped = raw
+                .replacingOccurrences(of: #"\s*<[^>]+>\s*$"#, with: "", options: .regularExpression)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'").union(.whitespacesAndNewlines))
+            if !stripped.isEmpty {
+                if stripped.contains("@") {
+                    if let derived = nameFromEmail(stripped) { return derived }
+                } else {
+                    return stripped
+                }
+            }
+        }
+        let urlString = participant.url.absoluteString
+        if urlString.lowercased().hasPrefix("mailto:") {
+            let email = String(urlString.dropFirst("mailto:".count))
+            return nameFromEmail(email)
+        }
+        return nil
+    }
+
+    private static func nameFromEmail(_ rawEmail: String) -> String? {
+        let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let atIndex = email.firstIndex(of: "@") else { return nil }
+        let localPart = String(email[..<atIndex])
+        guard !localPart.isEmpty else { return nil }
+        let lowered = localPart.lowercased()
+        if lowered.contains("noreply") || lowered.contains("no-reply") || lowered.contains("calendar") {
+            return nil
+        }
+        let words = localPart
+            .components(separatedBy: CharacterSet(charactersIn: "._-+"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !$0.allSatisfy(\.isNumber) }
+        guard !words.isEmpty else { return nil }
+        return words.map { word in
+            word.prefix(1).uppercased() + word.dropFirst().lowercased()
+        }.joined(separator: " ")
     }
 
     private static func calendar(_ calendar: EKCalendar) -> MeetingCalendar {
@@ -187,9 +265,26 @@ final class MeetingCalendarService: ObservableObject {
                 && dismissedOccurrences[$0.event.id] == nil
         }.map {
             DetectedMeeting(id: $0.event.id, title: $0.event.title, startDate: $0.event.startDate,
-                            endDate: $0.event.endDate, isInProgress: $0.event.startDate <= now)
+                            endDate: $0.event.endDate, isInProgress: $0.event.startDate <= now,
+                            attendees: $0.event.attendees)
         }
         lastRefreshedAt = now
+    }
+
+    func matchingEvent(at now: Date = Date()) -> CalendarEvent? {
+        let horizon = now.addingTimeInterval(15 * 60)
+        let candidates = upcomingEvents.filter { $0.startDate <= horizon && $0.endDate > now }
+        let inProgress = candidates
+            .filter { $0.startDate <= now }
+            .sorted { lhs, rhs in
+                if lhs.startDate != rhs.startDate { return lhs.startDate > rhs.startDate }
+                return lhs.id < rhs.id
+            }
+        if let active = inProgress.first { return active }
+        return candidates.sorted { lhs, rhs in
+            if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+            return lhs.id < rhs.id
+        }.first
     }
 
     /// Keep a dismissed occurrence hidden until it ends, including across automatic refreshes.

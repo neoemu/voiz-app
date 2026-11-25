@@ -909,8 +909,8 @@ struct MeetingFoldersSection: View {
                 heading: "Criar pasta",
                 confirmLabel: "Criar",
                 onCancel: { showCreateSheet = false },
-                onSave: { name, details in
-                    viewModel.createFolder(name: name, details: details)
+                onSave: { name, details, expected in
+                    viewModel.createFolder(name: name, details: details, expectedParticipants: expected)
                     showCreateSheet = false
                 }
             )
@@ -921,9 +921,10 @@ struct MeetingFoldersSection: View {
                 confirmLabel: "Salvar",
                 initialName: folder.name,
                 initialDetails: folder.details,
+                initialExpectedParticipants: folder.expectedParticipants ?? [],
                 onCancel: { folderToEdit = nil },
-                onSave: { name, details in
-                    viewModel.updateFolder(folder, name: name, details: details)
+                onSave: { name, details, expected in
+                    viewModel.updateFolder(folder, name: name, details: details, expectedParticipants: expected)
                     folderToEdit = nil
                 }
             )
@@ -1006,7 +1007,7 @@ struct MeetingFolderCard: View {
     }
 }
 
-/// Folha de criar/editar pasta (título + descrição), no mesmo estilo do RenameSheet.
+/// Folha de criar/editar pasta (título + descrição + participantes frequentes), no mesmo estilo do RenameSheet.
 struct MeetingFolderSheet: View {
     /// São sempre rótulos do app. Como `String`, `Text(heading)` e `Button(confirmLabel)` os
     /// exibiam literalmente e a folha escapava da localização.
@@ -1014,11 +1015,13 @@ struct MeetingFolderSheet: View {
     let confirmLabel: LocalizedStringKey
     var initialName: String = ""
     var initialDetails: String = ""
+    var initialExpectedParticipants: [String] = []
     let onCancel: () -> Void
-    let onSave: (String, String) -> Void
+    let onSave: (String, String, [String]) -> Void
 
     @State private var name = ""
     @State private var details = ""
+    @State private var expectedParticipantsDraft = ""
     @FocusState private var nameFocused: Bool
 
     private var canSave: Bool {
@@ -1055,7 +1058,11 @@ struct MeetingFolderSheet: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .focused($nameFocused)
-                    .onSubmit { if canSave { onSave(name, details) } }
+                    .onSubmit {
+                        if canSave {
+                            onSave(name, details, MeetingParticipantMemory.parseExpectedParticipants(from: expectedParticipantsDraft))
+                        }
+                    }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -1072,16 +1079,35 @@ struct MeetingFolderSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Participantes frequentes (opcional)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(VoizTheme.mutedText)
+                TextEditor(text: $expectedParticipantsDraft)
+                    .font(.system(size: 13))
+                    .scrollContentBackground(.hidden)
+                    .frame(height: 82)
+                    .padding(8)
+                    .background(VoizTheme.elevatedBackground)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text("Um por linha — você pode colar direto do Teams ou Outlook.")
+                    .font(.system(size: 11))
+                    .foregroundColor(VoizTheme.mutedText)
+            }
+
             HStack(spacing: 10) {
                 Spacer()
                 Button("Cancelar", action: onCancel)
                     .buttonStyle(GranolaPillButtonStyle())
                     .keyboardShortcut(.cancelAction)
-                Button(confirmLabel) { onSave(name, details) }
-                    .buttonStyle(VoizPrimaryButtonStyle())
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.5)
+                Button(confirmLabel) {
+                    onSave(name, details, MeetingParticipantMemory.parseExpectedParticipants(from: expectedParticipantsDraft))
+                }
+                .buttonStyle(VoizPrimaryButtonStyle())
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave)
+                .opacity(canSave ? 1 : 0.5)
             }
         }
         .padding(22)
@@ -1090,6 +1116,7 @@ struct MeetingFolderSheet: View {
         .onAppear {
             name = initialName
             details = initialDetails
+            expectedParticipantsDraft = initialExpectedParticipants.joined(separator: "\n")
             nameFocused = true
         }
     }
@@ -1179,9 +1206,10 @@ struct MeetingFolderView: View {
                 confirmLabel: "Salvar",
                 initialName: original.name,
                 initialDetails: original.details,
+                initialExpectedParticipants: original.expectedParticipants ?? [],
                 onCancel: { folderToEdit = nil },
-                onSave: { name, details in
-                    viewModel.updateFolder(original, name: name, details: details)
+                onSave: { name, details, expected in
+                    viewModel.updateFolder(original, name: name, details: details, expectedParticipants: expected)
                     folderToEdit = nil
                 }
             )
@@ -3125,13 +3153,55 @@ struct MeetingParticipantsCard: View {
     let session: MeetingSession
     @State private var speakerToRename: MeetingSpeaker?
     @State private var renameDraft = ""
+    @State private var showExpectedSheet = false
+    @State private var expectedDraft = ""
+
+    private var effectiveExpected: [String] {
+        viewModel.effectiveExpectedParticipants(for: session)
+    }
+
+    private var folderExpected: [String] {
+        guard let folderId = session.folderId else { return [] }
+        return MeetingParticipantMemory.normalizeExpectedParticipants(
+            viewModel.folders.first(where: { $0.id == folderId })?.expectedParticipants ?? []
+        )
+    }
+
+    private var canIdentifyAfterSave: Bool {
+        let hasRemoteClusters = session.speakers.contains {
+            $0.source == .systemAudio
+                && $0.id != MeetingCaptureSource.systemAudio.rawValue
+                && !$0.id.hasPrefix("unidentified:")
+        }
+        return (hasRemoteClusters && !session.turns.isEmpty) || viewModel.hasRecordedAudio(session)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Participantes")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(VoizTheme.mutedText)
-                .textCase(.uppercase)
+            HStack {
+                Text("Participantes")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(VoizTheme.mutedText)
+                    .textCase(.uppercase)
+                Spacer()
+                Button {
+                    expectedDraft = (session.expectedParticipants ?? []).joined(separator: "\n")
+                    showExpectedSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.badge.plus")
+                        if effectiveExpected.isEmpty {
+                            Text("Lista esperada")
+                        } else {
+                            Text("Lista esperada (\(effectiveExpected.count))")
+                        }
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(VoizTheme.accent)
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isProcessing(session) || viewModel.activeSession?.id == session.id)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(session.participantsListSpeakers) { speaker in
@@ -3164,12 +3234,31 @@ struct MeetingParticipantsCard: View {
             RenameSheet(
                 title: "Renomear participante",
                 text: $renameDraft,
+                suggestions: speakerToRename.map { viewModel.suggestedRenameNames(for: $0, in: session) } ?? [],
                 onCancel: { speakerToRename = nil },
                 onSave: {
                     if let speaker = speakerToRename {
                         viewModel.renameSpeaker(speaker, to: renameDraft)
                     }
                     speakerToRename = nil
+                }
+            )
+        }
+        .sheet(isPresented: $showExpectedSheet) {
+            ExpectedParticipantsSheet(
+                text: $expectedDraft,
+                folderParticipants: folderExpected,
+                canIdentify: canIdentifyAfterSave,
+                onCancel: { showExpectedSheet = false },
+                onSave: {
+                    let parsed = MeetingParticipantMemory.parseExpectedParticipants(from: expectedDraft)
+                    viewModel.saveExpectedParticipants(parsed, for: session, andIdentify: false)
+                    showExpectedSheet = false
+                },
+                onSaveAndIdentify: {
+                    let parsed = MeetingParticipantMemory.parseExpectedParticipants(from: expectedDraft)
+                    viewModel.saveExpectedParticipants(parsed, for: session, andIdentify: true)
+                    showExpectedSheet = false
                 }
             )
         }
@@ -3180,6 +3269,66 @@ struct MeetingParticipantsCard: View {
             get: { speakerToRename != nil },
             set: { if !$0 { speakerToRename = nil } }
         )
+    }
+}
+
+private struct ExpectedParticipantsSheet: View {
+    @Binding var text: String
+    let folderParticipants: [String]
+    let canIdentify: Bool
+    let onCancel: () -> Void
+    let onSave: () -> Void
+    let onSaveAndIdentify: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: "person.2.wave.2")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(VoizTheme.accent)
+                Text("Participantes esperados")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(VoizTheme.primaryText)
+            }
+
+            Text("Cole os participantes do Teams ou Outlook ou digite um nome por linha.")
+                .font(.system(size: 12))
+                .foregroundColor(VoizTheme.mutedText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !folderParticipants.isEmpty {
+                Text("Da pasta: \(folderParticipants.joined(separator: ", "))")
+                    .font(.system(size: 11))
+                    .foregroundColor(VoizTheme.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            TextEditor(text: $text)
+                .font(.system(size: 13))
+                .scrollContentBackground(.hidden)
+                .frame(height: 130)
+                .padding(8)
+                .background(VoizTheme.elevatedBackground)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            HStack(spacing: 10) {
+                Spacer()
+                Button("Cancelar", action: onCancel)
+                    .buttonStyle(GranolaPillButtonStyle())
+                    .keyboardShortcut(.cancelAction)
+                Button("Salvar", action: onSave)
+                    .buttonStyle(GranolaPillButtonStyle())
+                if canIdentify {
+                    Button("Salvar e identificar", action: onSaveAndIdentify)
+                        .buttonStyle(VoizPrimaryButtonStyle())
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+        .padding(22)
+        .frame(width: 460)
+        .background(VoizTheme.surfaceBackground)
     }
 }
 

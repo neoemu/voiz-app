@@ -299,9 +299,13 @@ struct DiarizationWindowLinker {
             spansByCluster[entry.segment.speakerId, default: []]
                 .append(entry.segment.start..<entry.segment.end)
         }
-        let demoted = spansByCluster
-            .mapValues { unionDuration($0) }
-            .filter { $0.value < minimumDuration }
+        let durations = spansByCluster.mapValues { unionDuration($0) }
+        // Em gravações curtas ou testes rápidos ninguém atinge 10 s; baixar o piso
+        // para `minimumNewClusterDuration` evita rebaixar todos os falantes de uma vez.
+        let effectiveMinimum = durations.values.contains(where: { $0 >= minimumDuration })
+            ? minimumDuration
+            : minimumNewClusterDuration
+        let demoted = durations.filter { $0.value < effectiveMinimum }
         guard !demoted.isEmpty else { return [:] }
 
         for index in materialized.indices where demoted[materialized[index].segment.speakerId] != nil {

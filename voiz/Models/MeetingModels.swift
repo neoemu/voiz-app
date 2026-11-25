@@ -447,12 +447,21 @@ struct MeetingFolder: Identifiable, Codable, Equatable {
     var name: String
     /// Descrição opcional ("Describe the purpose of this folder").
     var details: String
+    /// Participantes esperados para reuniões nesta pasta (ex.: time da Daily).
+    var expectedParticipants: [String]?
     var createdAt: Date
 
-    init(id: UUID = UUID(), name: String, details: String = "", createdAt: Date = Date()) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        details: String = "",
+        expectedParticipants: [String]? = nil,
+        createdAt: Date = Date()
+    ) {
         self.id = id
         self.name = name
         self.details = details
+        self.expectedParticipants = expectedParticipants
         self.createdAt = createdAt
     }
 }
@@ -523,6 +532,8 @@ struct MeetingSession: Identifiable, Codable, Equatable {
     /// Clique em Reprocessar: o recovery re-enfileira o pipeline completo, não o
     /// só-resumo do Granola. nil/false = automático. Decode ausente = nil.
     var pendingManualReprocess: Bool?
+    /// Lista local de participantes esperados (agenda, pasta ou colada pelo usuário/MCP).
+    var expectedParticipants: [String]?
 
     init(
         id: UUID = UUID(),
@@ -550,7 +561,8 @@ struct MeetingSession: Identifiable, Codable, Equatable {
         transcriptionPlan: TranscriptionPlanSnapshot? = nil,
         meetingMode: AppSettings.MeetingMode? = nil,
         isProcessingCompleted: Bool? = nil,
-        pendingManualReprocess: Bool? = nil
+        pendingManualReprocess: Bool? = nil,
+        expectedParticipants: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -578,6 +590,7 @@ struct MeetingSession: Identifiable, Codable, Equatable {
         self.meetingMode = meetingMode
         self.isProcessingCompleted = isProcessingCompleted
         self.pendingManualReprocess = pendingManualReprocess
+        self.expectedParticipants = expectedParticipants
     }
 
     var duration: TimeInterval {

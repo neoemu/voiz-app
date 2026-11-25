@@ -202,7 +202,10 @@ struct ContentView: View {
         // Aqui o `StateObject` já foi instalado pelo SwiftUI. Fazer esse attach no init poderia
         // conectar o singleton a um MeetingViewModel temporário descartado numa reinicialização.
         .onAppear {
-            LocalMCPServer.shared.attach(to: meetingViewModel.store)
+            LocalMCPServer.shared.attach(to: meetingViewModel.store) { [weak meetingViewModel] id in
+                meetingViewModel?.activeSession?.id == id
+                    || meetingViewModel?.processingSessionIDs.contains(id) == true
+            }
             let protectedWork: () -> Bool? = { [weak viewModel, weak meetingViewModel, weak translationViewModel] in
                 guard viewModel != nil || meetingViewModel != nil || translationViewModel != nil else { return nil }
                 let activeStates: [TranscriptionState] = [.listening, .processing]
@@ -770,8 +773,8 @@ struct VoizSidebar: View {
                 heading: "Criar pasta",
                 confirmLabel: "Criar",
                 onCancel: { showCreateFolderSheet = false },
-                onSave: { name, details in
-                    meetingViewModel.createFolder(name: name, details: details)
+                onSave: { name, details, expected in
+                    meetingViewModel.createFolder(name: name, details: details, expectedParticipants: expected)
                     // Garante que a pasta recém-criada apareça na sidebar.
                     foldersCollapsed = false
                     showCreateFolderSheet = false
@@ -1298,6 +1301,7 @@ struct RenameSheet: View {
     /// ("Renomear reunião", "Renomear ditado"…) escapavam da tradução.
     let title: LocalizedStringKey
     @Binding var text: String
+    var suggestions: [String] = []
     let onCancel: () -> Void
     let onSave: () -> Void
     @FocusState private var fieldFocused: Bool
@@ -1324,6 +1328,40 @@ struct RenameSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .focused($fieldFocused)
                 .onSubmit(onSave)
+
+            if !suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Sugestões")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(VoizTheme.mutedText)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(suggestions.prefix(8)), id: \.self) { suggestion in
+                                Button {
+                                    text = suggestion
+                                } label: {
+                                    Text(suggestion)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(VoizTheme.primaryText)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(VoizTheme.elevatedBackground)
+                                        .overlay(
+                                            Capsule().stroke(
+                                                MeetingParticipantMemory.canonicalKey(text) == MeetingParticipantMemory.canonicalKey(suggestion)
+                                                    ? VoizTheme.accent
+                                                    : VoizTheme.border,
+                                                lineWidth: 1
+                                            )
+                                        )
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
 
             HStack(spacing: 10) {
                 Spacer()
