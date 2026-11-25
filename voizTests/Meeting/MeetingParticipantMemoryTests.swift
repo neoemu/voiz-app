@@ -262,4 +262,39 @@ struct MeetingParticipantMemoryTests {
         #expect(session.expectedParticipants == nil)
         #expect(folder.expectedParticipants == nil)
     }
+
+    @Test("Preserva lista explicitamente vazia de evento sem cair no fallback")
+    func preservesExplicitEmptyExpectedParticipantsOverFallback() {
+        var fallbackCalled = false
+        let explicitEmpty = MeetingParticipantMemory.resolveInitialExpectedParticipants(
+            explicit: [],
+            fallback: {
+                fallbackCalled = true
+                return ["Ana Silva"]
+            }
+        )
+        #expect(explicitEmpty == nil)
+        #expect(fallbackCalled == false)
+
+        let fromFallback = MeetingParticipantMemory.resolveInitialExpectedParticipants(
+            explicit: nil,
+            fallback: {
+                fallbackCalled = true
+                return ["Ana Silva", "Participante 1"]
+            }
+        )
+        #expect(fallbackCalled == true)
+        #expect(fromFallback == ["Ana Silva"])
+
+        var fallbackCalledForExplicitNames = false
+        let explicitNames = MeetingParticipantMemory.resolveInitialExpectedParticipants(
+            explicit: ["Bruno Costa"],
+            fallback: {
+                fallbackCalledForExplicitNames = true
+                return ["Ana Silva"]
+            }
+        )
+        #expect(explicitNames == ["Bruno Costa"])
+        #expect(fallbackCalledForExplicitNames == false)
+    }
 }
