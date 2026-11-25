@@ -297,4 +297,71 @@ struct MeetingParticipantMemoryTests {
         #expect(explicitNames == ["Bruno Costa"])
         #expect(fallbackCalledForExplicitNames == false)
     }
+
+    @Test("Exclui placeholders de falantes em todos os idiomas suportados")
+    func excludesLocalizedSpeakerPlaceholdersFromMemoryAndNaming() {
+        let placeholders = [
+            "Você", "You", "Tú", "Vous", "Du", "あなた", "你",
+            "Outros na chamada", "Others on the call", "Otros en la llamada",
+            "Autres participants à l’appel", "Andere im Anruf",
+            "通話中の他の参加者", "通话中的其他人",
+            "Participante 1", "Participant 2", "Teilnehmer 1", "Teilnehmende",
+            "参加者 1", "参加者　２", "参与者 1", "参与者2", "S1"
+        ]
+        for label in placeholders {
+            #expect(MeetingParticipantMemory.isGenericSpeakerLabel(label), "Placeholder deveria ser filtrado: \(label)")
+        }
+
+        let realNames = ["Ana Silva", "Lukas Weber", "Yuki Sato", "Wei Chen", "田中 太郎", "张伟"]
+        for name in realNames {
+            #expect(!MeetingParticipantMemory.isGenericSpeakerLabel(name), "Nome real não deveria ser filtrado: \(name)")
+        }
+
+        let pastSession = MeetingSession(
+            title: "Sync internacional",
+            startedAt: Date(timeIntervalSince1970: 1_900_000_000),
+            endedAt: Date(timeIntervalSince1970: 1_900_001_800),
+            speakers: [
+                MeetingSpeaker(id: "S1", source: .systemAudio, name: "Teilnehmer 1", embedding: makeEmbedding(angle: 0.1)),
+                MeetingSpeaker(id: "S2", source: .systemAudio, name: "参加者 1", embedding: makeEmbedding(angle: 0.4)),
+                MeetingSpeaker(id: "S3", source: .systemAudio, name: "参与者 1", embedding: makeEmbedding(angle: 0.7)),
+                MeetingSpeaker(id: "S4", source: .systemAudio, name: "Autres participants à l’appel", embedding: makeEmbedding(angle: 1.0)),
+                MeetingSpeaker(id: "S5", source: .systemAudio, name: "Andere im Anruf", embedding: makeEmbedding(angle: 1.3)),
+                MeetingSpeaker(id: "S6", source: .systemAudio, name: "Lukas Weber", embedding: makeEmbedding(angle: 1.8))
+            ],
+            turns: [
+                makeTurn(speakerID: "S1", name: "Teilnehmer 1"),
+                makeTurn(speakerID: "S2", name: "参加者 1"),
+                makeTurn(speakerID: "S3", name: "参与者 1"),
+                makeTurn(speakerID: "S6", name: "Lukas Weber")
+            ],
+            isProcessingCompleted: true
+        )
+
+        let profiles = MeetingParticipantMemory.buildVoiceProfiles(from: [pastSession])
+        #expect(profiles.map(\.name) == ["Lukas Weber"])
+
+        let known = MeetingParticipantMemory.knownPeople(from: [pastSession], folders: [])
+        #expect(known.map(\.name) == ["Lukas Weber"])
+
+        let resolved = MeetingParticipantMemory.resolveFinalNames(
+            llmSuggestions: [
+                "S1": MeetingSpeakerNameSuggestion(name: "Teilnehmer 1", confidence: .high),
+                "S2": MeetingSpeakerNameSuggestion(name: "参加者 1", confidence: .high)
+            ],
+            voiceReport: MeetingVoiceMatchReport(
+                strongMatches: [
+                    "S3": MeetingVoiceHint(name: "参与者 1", similarity: 0.95, isStrong: true, sampleCount: 2)
+                ],
+                hintsBySpeakerID: [:]
+            ),
+            speakers: [
+                MeetingSpeaker(id: "S1", source: .systemAudio, name: "Participante 1"),
+                MeetingSpeaker(id: "S2", source: .systemAudio, name: "Participante 2"),
+                MeetingSpeaker(id: "S3", source: .systemAudio, name: "Participante 3")
+            ],
+            userDisplayName: nil
+        )
+        #expect(resolved.isEmpty)
+    }
 }
