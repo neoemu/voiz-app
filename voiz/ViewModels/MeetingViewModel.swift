@@ -844,13 +844,10 @@ final class MeetingViewModel: ObservableObject {
         if let suggestedTitle = suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !suggestedTitle.isEmpty {
             session.title = suggestedTitle
         }
-        let rawExpected = (expectedParticipants?.isEmpty == false ? expectedParticipants : nil)
-            ?? calendarService.matchingEvent()?.otherAttendeeNames
-            ?? []
-        let normalizedExpected = MeetingParticipantMemory.normalizeExpectedParticipants(rawExpected)
-        if !normalizedExpected.isEmpty {
-            session.expectedParticipants = normalizedExpected
-        }
+        session.expectedParticipants = MeetingParticipantMemory.resolveInitialExpectedParticipants(
+            explicit: expectedParticipants,
+            fallback: { calendarService.matchingEvent()?.otherAttendeeNames }
+        )
         activeSession = session
         selectedSession = session
         store.save(session)

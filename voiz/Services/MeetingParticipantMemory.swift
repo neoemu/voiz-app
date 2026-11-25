@@ -152,6 +152,17 @@ nonisolated enum MeetingParticipantMemory {
         return result
     }
 
+    /// Preserva lista explicitamente vazia (ex.: evento de calendário sem outros convidados)
+    /// sem cair no fallback de outro evento sobreposto. Só consulta `fallback` quando `explicit == nil`.
+    static func resolveInitialExpectedParticipants(
+        explicit: [String]?,
+        fallback: () -> [String]?
+    ) -> [String]? {
+        let raw = explicit ?? fallback() ?? []
+        let normalized = normalizeExpectedParticipants(raw)
+        return normalized.isEmpty ? nil : normalized
+    }
+
     private static func cleanCopiedParticipantLine(_ rawLine: String) -> String? {
         var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !line.isEmpty else { return nil }
