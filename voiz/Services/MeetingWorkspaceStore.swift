@@ -149,9 +149,7 @@ final class MeetingPreparationModel: ObservableObject {
                 let settings = try await loadSettings()
                 try Task.checkCancellation()
                 guard requestID == token else { return }
-                let service = complete == nil ? AICompletionService(provider: settings.translationProvider, apiKey: settings.currentAPIKey,
-                    model: settings.currentModelId, baseURL: settings.currentBaseURL,
-                    reasoningEffort: settings.currentReasoningEffort) : nil
+                let service = complete == nil ? AICompletionService(settings: settings) : nil
                 let completion: Completion = complete ?? { prompt, _ in
                     try await service!.completeAccumulating(prompt: prompt, temperature: 0.2)
                 }

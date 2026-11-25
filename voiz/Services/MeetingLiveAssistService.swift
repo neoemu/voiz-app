@@ -89,13 +89,7 @@ final class MeetingLiveAssistService {
 
     init(settings: AppSettings) {
         self.languageInstruction = settings.notesLanguageInstruction
-        self.completionService = AICompletionService(
-            provider: settings.translationProvider,
-            apiKey: settings.currentAPIKey,
-            model: settings.currentModelId,
-            baseURL: settings.currentBaseURL,
-            reasoningEffort: settings.currentReasoningEffort
-        )
+        self.completionService = AICompletionService(settings: settings)
     }
 
     func updateSettings(_ settings: AppSettings) {
