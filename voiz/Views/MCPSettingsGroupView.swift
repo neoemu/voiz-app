@@ -26,6 +26,19 @@ struct MCPSettingsGroupView: View {
                 statusStrip
 
                 SettingsDivider()
+                SettingsRow(
+                    icon: "person.2.wave.2",
+                    title: "Permitir atualizar participantes",
+                    subtitle: "Libera ferramentas MCP para listar pastas e atualizar nomes de participantes nas reuniões."
+                ) {
+                    Toggle("", isOn: participantUpdatesBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .tint(VoizTheme.accent)
+                        .accessibilityLabel("Permitir atualizar participantes via MCP")
+                }
+
+                SettingsDivider()
                 endpointBlock
 
                 SettingsDivider()
@@ -84,6 +97,13 @@ struct MCPSettingsGroupView: View {
         Binding(
             get: { server.isEnabled },
             set: { server.setEnabled($0) }
+        )
+    }
+
+    private var participantUpdatesBinding: Binding<Bool> {
+        Binding(
+            get: { server.allowsParticipantUpdates },
+            set: { server.setAllowsParticipantUpdates($0) }
         )
     }
 

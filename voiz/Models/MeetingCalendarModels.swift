@@ -43,12 +43,19 @@ struct MeetingCalendarAccount: Identifiable, Equatable {
     }
 }
 
+nonisolated struct CalendarAttendee: Equatable, Hashable, Codable, Sendable {
+    var name: String
+    var isCurrentUser: Bool = false
+    var isOrganizer: Bool = false
+}
+
 struct DetectedMeeting: Equatable, Identifiable {
     let id: String
     let title: String
     let startDate: Date
     let endDate: Date
     let isInProgress: Bool
+    var attendees: [CalendarAttendee] = []
 
     var minutesUntilStart: Int { max(0, Int(startDate.timeIntervalSinceNow / 60)) }
 }
@@ -63,9 +70,24 @@ struct CalendarEvent: Identifiable, Equatable {
     var calendarTitle: String = ""
     var accountTitle: String = ""
     var color: CalendarColor? = nil
+    var attendees: [CalendarAttendee] = []
 
     var sourceLabel: String {
         [accountTitle, calendarTitle].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    var otherAttendeeNames: [String] {
+        var seen: Set<String> = []
+        var names: [String] = []
+        for attendee in attendees where !attendee.isCurrentUser {
+            let trimmed = attendee.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            if seen.insert(key).inserted {
+                names.append(trimmed)
+            }
+        }
+        return names
     }
 
     /// Uses local day boundaries, including an ongoing event that crosses midnight.

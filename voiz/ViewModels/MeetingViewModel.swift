@@ -653,8 +653,11 @@ final class MeetingViewModel: ObservableObject {
     /// Inicia a gravação a partir da reunião sugerida, herdando o título do evento.
     func recordDetectedMeeting() {
         let title = detectedMeeting?.title
+        let expected = detectedMeeting?.attendees
+            .filter { !$0.isCurrentUser }
+            .map(\.name)
         calendarService.dismiss()
-        Task { await startMeeting(suggestedTitle: title) }
+        Task { await startMeeting(suggestedTitle: title, expectedParticipants: expected) }
     }
 
     /// Called only by the explicit start button, with preparation captured before any audio starts.
@@ -664,7 +667,8 @@ final class MeetingViewModel: ObservableObject {
         await startMeeting(suggestedTitle: event.title,
                            initialNotes: workspace.scheduledDrafts[event.id]?.notes ?? "",
                            contextSessionIDs: workspace.scheduledDrafts[event.id]?.contextSessionIDs
-                            ?? workspace.preparations[event.id]?.selectedSessionIDs)
+                            ?? workspace.preparations[event.id]?.selectedSessionIDs,
+                           expectedParticipants: event.otherAttendeeNames)
         guard state == .listening, activeSession != nil else { return false }
         calendarService.dismiss(event)
         return true
@@ -763,10 +767,18 @@ final class MeetingViewModel: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: Notification.Name("VoizOpenMeetingsTab"), object: nil)
         let title = detectedMeeting?.title ?? "Reunião no \(app.appName)"
-        Task { await startMeeting(suggestedTitle: title) }
+        let expected = detectedMeeting?.attendees
+            .filter { !$0.isCurrentUser }
+            .map(\.name)
+        Task { await startMeeting(suggestedTitle: title, expectedParticipants: expected) }
     }
 
-    func startMeeting(suggestedTitle: String? = nil, initialNotes: String = "", contextSessionIDs: [UUID]? = nil) async {
+    func startMeeting(
+        suggestedTitle: String? = nil,
+        initialNotes: String = "",
+        contextSessionIDs: [UUID]? = nil,
+        expectedParticipants: [String]? = nil
+    ) async {
         guard canStartMeeting else { return }
         let token = UUID()
         meetingStartID = token
@@ -831,6 +843,13 @@ final class MeetingViewModel: ObservableObject {
         }
         if let suggestedTitle = suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !suggestedTitle.isEmpty {
             session.title = suggestedTitle
+        }
+        let rawExpected = (expectedParticipants?.isEmpty == false ? expectedParticipants : nil)
+            ?? calendarService.matchingEvent()?.otherAttendeeNames
+            ?? []
+        let normalizedExpected = MeetingParticipantMemory.normalizeExpectedParticipants(rawExpected)
+        if !normalizedExpected.isEmpty {
+            session.expectedParticipants = normalizedExpected
         }
         activeSession = session
         selectedSession = session
@@ -1364,9 +1383,70 @@ final class MeetingViewModel: ObservableObject {
             guard !self.isProcessing(target), self.hasRecordedAudio(target) else { return }
             self.processingSessionIDs.insert(target.id)
             defer { self.processingSessionIDs.remove(target.id) }
-            var copy = target
-            await self.diarizeAndName(&copy)
-            self.applyDiarizationDelta(copy, before: target.speakers, sessionId: target.id)
+            let segments = await self.diarizeSystemAudio(for: target.id)
+            guard !segments.isEmpty, var copy = self.sessionForEditing(id: target.id) else { return }
+            let before = copy.speakers
+            self.applyDiarization(to: &copy, segments: segments)
+            self.applyDiarizationDelta(copy, before: before, sessionId: target.id)
+            _ = await self.identifyAndNameParticipants(for: target.id)
+            if self.activeSession == nil {
+                self.statusMessage = String(localized: "Reunião salva")
+            }
+        }
+    }
+
+    /// Reidentifica os nomes dos participantes em uma sessão já diarizada (usando memória de voz, lista esperada e IA).
+    func identifyParticipantNames(for session: MeetingSession) {
+        guard !isProcessing(session), !session.turns.isEmpty else { return }
+        withAvailableSession(session.id) { target in
+            guard !self.isProcessing(target), !target.turns.isEmpty else { return }
+            self.processingSessionIDs.insert(target.id)
+            defer { self.processingSessionIDs.remove(target.id) }
+            _ = await self.identifyAndNameParticipants(for: target.id)
+            if self.activeSession == nil {
+                self.statusMessage = String(localized: "Reunião salva")
+            }
+        }
+    }
+
+    func saveExpectedParticipants(_ names: [String], for session: MeetingSession, andIdentify: Bool) {
+        if !andIdentify {
+            updateExpectedParticipants(names, for: session.id)
+            return
+        }
+        guard !isProcessing(session) else { return }
+        withAvailableSession(session.id) { target in
+            guard !self.isProcessing(target) else { return }
+            var updated = target
+            let normalized = MeetingParticipantMemory.normalizeExpectedParticipants(names)
+            updated.expectedParticipants = normalized.isEmpty ? nil : normalized
+            self.updateSession(updated)
+
+            let hasRemoteClusters = updated.speakers.contains {
+                $0.source == .systemAudio
+                    && $0.id != MeetingCaptureSource.systemAudio.rawValue
+                    && !$0.id.hasPrefix("unidentified:")
+            }
+            if hasRemoteClusters && !updated.turns.isEmpty {
+                self.processingSessionIDs.insert(target.id)
+                defer { self.processingSessionIDs.remove(target.id) }
+                _ = await self.identifyAndNameParticipants(for: target.id)
+                if self.activeSession == nil {
+                    self.statusMessage = String(localized: "Reunião salva")
+                }
+            } else if self.hasRecordedAudio(updated) {
+                self.processingSessionIDs.insert(target.id)
+                defer { self.processingSessionIDs.remove(target.id) }
+                let segments = await self.diarizeSystemAudio(for: target.id)
+                guard !segments.isEmpty, var copy = self.sessionForEditing(id: target.id) else { return }
+                let before = copy.speakers
+                self.applyDiarization(to: &copy, segments: segments)
+                self.applyDiarizationDelta(copy, before: before, sessionId: target.id)
+                _ = await self.identifyAndNameParticipants(for: target.id)
+                if self.activeSession == nil {
+                    self.statusMessage = String(localized: "Reunião salva")
+                }
+            }
         }
     }
 
@@ -1648,24 +1728,59 @@ final class MeetingViewModel: ObservableObject {
     // MARK: - Pastas
 
     /// Cria uma pasta (nome vazio é ignorado).
-    func createFolder(name: String, details: String) {
+    func createFolder(name: String, details: String, expectedParticipants: [String] = []) {
         VoizEditingGate.shared.submit { [self] in
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            store.createFolder(name: trimmed, details: details.trimmingCharacters(in: .whitespacesAndNewlines))
+            let normalized = MeetingParticipantMemory.normalizeExpectedParticipants(expectedParticipants)
+            store.createFolder(
+                name: trimmed,
+                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
+                expectedParticipants: normalized.isEmpty ? nil : normalized
+            )
         }
     }
 
     /// Atualiza nome/descrição de uma pasta (nome vazio é ignorado).
-    func updateFolder(_ folder: MeetingFolder, name: String, details: String) {
+    func updateFolder(_ folder: MeetingFolder, name: String, details: String, expectedParticipants: [String]? = nil) {
         VoizEditingGate.shared.submit { [self] in
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             var updated = folder
             updated.name = trimmed
             updated.details = details.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let expectedParticipants {
+                let normalized = MeetingParticipantMemory.normalizeExpectedParticipants(expectedParticipants)
+                updated.expectedParticipants = normalized.isEmpty ? nil : normalized
+            }
             store.updateFolder(updated, basedOn: folder)
         }
+    }
+
+    func updateExpectedParticipants(_ names: [String], for sessionID: UUID) {
+        VoizEditingGate.shared.submit { [self] in
+            guard var session = sessionForEditing(id: sessionID) else { return }
+            let normalized = MeetingParticipantMemory.normalizeExpectedParticipants(names)
+            session.expectedParticipants = normalized.isEmpty ? nil : normalized
+            updateSession(session)
+        }
+    }
+
+    func effectiveExpectedParticipants(for session: MeetingSession) -> [String] {
+        let folder = session.folderId.flatMap { id in folders.first { $0.id == id } }
+        return MeetingParticipantMemory.normalizeExpectedParticipants(
+            (session.expectedParticipants ?? []) + (folder?.expectedParticipants ?? [])
+        )
+    }
+
+    func suggestedRenameNames(for speaker: MeetingSpeaker, in session: MeetingSession) -> [String] {
+        MeetingParticipantMemory.suggestedRenameNames(
+            for: speaker,
+            in: session,
+            allSessions: sessions,
+            folders: folders,
+            userDisplayName: UserProfileStore.shared.profile.displayName
+        )
     }
 
     /// Apaga a pasta; as reuniões dela ficam sem pasta (nada é perdido).
@@ -1806,7 +1921,14 @@ final class MeetingViewModel: ObservableObject {
         store.$sessions
             .receive(on: DispatchQueue.main)
             .sink { [weak self] sessions in
-                self?.sessions = sessions
+                guard let self else { return }
+                self.sessions = sessions
+                if self.activeSession == nil,
+                   let selected = self.selectedSession,
+                   let updated = sessions.first(where: { $0.id == selected.id }),
+                   updated != selected {
+                    self.selectedSession = updated
+                }
             }
             .store(in: &cancellables)
 
@@ -1949,21 +2071,25 @@ final class MeetingViewModel: ObservableObject {
             speakerBoundaries: speakerBoundaries
         )
 
-        // 3. Atribuição de falante (com os lotes já de um falante só) e nomes
+        // 3. Atribuição inicial dos clusters diarizados (com os lotes já de um falante só)
         if !diarizedSegments.isEmpty, let session = sessionForEditing(id: sessionId) {
             var copy = session
             applyDiarization(to: &copy, segments: diarizedSegments)
-            guard await nameParticipants(&copy) else { return false }
             applyDiarizationDelta(copy, before: session.speakers, sessionId: sessionId)
         }
 
-        // 4. Reconciliação de eco acústico
+        // 4. Reconciliação de eco acústico (antes de nomear para que eco não vire fala de "Você")
         if let session = sessionForEditing(id: sessionId) {
             let reconciled = await reconcileEcho(session)
             applyEchoReconciliationDelta(reconciled, sessionId: sessionId)
         }
 
-        // 5. Geração do resumo com IA
+        // 5. Identificação de nomes reais (memória de voz + agenda/histórico + conversa)
+        if !diarizedSegments.isEmpty {
+            guard await identifyAndNameParticipants(for: sessionId) else { return false }
+        }
+
+        // 6. Geração do resumo com IA
         if let session = sessionForEditing(id: sessionId) {
             guard await generateSummary(for: session) else { return false }
         }
@@ -2560,15 +2686,6 @@ final class MeetingViewModel: ObservableObject {
         return updated
     }
 
-    /// Pós-call: separa as vozes do áudio do sistema (Camada 1) e sugere nomes reais
-    /// a partir da conversa (Camada 2). Roda antes do resumo para que ele já receba nomes.
-    private func diarizeAndName(_ session: inout MeetingSession) async {
-        let segments = await diarizeSystemAudio(for: session.id)
-        guard !segments.isEmpty else { return }
-        applyDiarization(to: &session, segments: segments)
-        await nameParticipants(&session)
-    }
-
     /// Camada 1 isolada: separa as vozes e devolve os segmentos, sem aplicar
     /// nada. É o que permite a diarização vir ANTES da transcrição — o mesmo
     /// resultado alimenta os CORTES de lote e a atribuição, numa passagem só.
@@ -2591,24 +2708,37 @@ final class MeetingViewModel: ObservableObject {
         }
     }
 
-    /// Camada 2 — nomes ditos na conversa (LLM)
+    /// Camada 2 — memória local de vozes + agenda/histórico + inferência pela conversa (LLM)
     @discardableResult
-    private func nameParticipants(_ session: inout MeetingSession) async -> Bool {
+    private func identifyAndNameParticipants(for sessionId: UUID) async -> Bool {
+        guard var copy = sessionForEditing(id: sessionId) else { return true }
+        copy.reconcileSpeakers()
+        let beforeSpeakers = copy.speakers
+
+        let hasEligibleRemote = copy.speakers.contains {
+            $0.source == .systemAudio
+                && $0.id != MeetingCaptureSource.systemAudio.rawValue
+                && !$0.id.hasPrefix("unidentified:")
+        }
+        guard hasEligibleRemote else { return true }
+
+        let context = MeetingParticipantMemory.buildContext(
+            for: copy,
+            allSessions: store.sessions,
+            folders: store.folders,
+            userDisplayName: UserProfileStore.shared.profile.displayName
+        )
+
         if activeSession == nil {
             statusMessage = String(localized: "Identificando nomes…")
         }
+
+        var llmSuggestions: [String: MeetingSpeakerNameSuggestion] = [:]
         do {
             let verified = try await settingsForMeetingAI(resource: .speakerNames)
             namingService.updateSettings(verified)
-            let names = try await namingService.suggestNames(for: session)
+            llmSuggestions = try await namingService.suggestNames(for: copy, context: context)
             guard !Task.isCancelled else { return false }
-            applyNames(to: &session, names: names)
-            if !names.isEmpty {
-                // O mapa rótulo→nome ia inteiro para o log. Os nomes saem da conversa (é o que esta
-                // camada faz: ler o transcript e achar como as pessoas se chamam), então são
-                // conteúdo derivado — e conteúdo que identifica gente.
-                addDebugLog(TranscriptionLogRedaction.meetingNamesApplied(names.count))
-            }
         } catch {
             if Task.isCancelled || error is CancellationError { return false }
             if error is SettingsCredentialError {
@@ -2621,6 +2751,21 @@ final class MeetingViewModel: ObservableObject {
                     detail: error.localizedDescription
                 )
             )
+        }
+
+        let resolvedNames = MeetingParticipantMemory.resolveFinalNames(
+            llmSuggestions: llmSuggestions,
+            voiceReport: context.voiceReport,
+            speakers: copy.speakers,
+            userDisplayName: context.userDisplayName
+        )
+        if !resolvedNames.isEmpty {
+            applyNames(to: &copy, names: resolvedNames)
+            applyDiarizationDelta(copy, before: beforeSpeakers, sessionId: sessionId)
+            // O mapa rótulo→nome ia inteiro para o log. Os nomes saem da conversa (é o que esta
+            // camada faz: ler o transcript e achar como as pessoas se chamam), então são
+            // conteúdo derivado — e conteúdo que identifica gente.
+            addDebugLog(TranscriptionLogRedaction.meetingNamesApplied(resolvedNames.count))
         }
         return true
     }

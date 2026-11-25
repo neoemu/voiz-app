@@ -89,7 +89,7 @@ struct MCPProtocolHandlerTests {
             switch MCPProtocolHandler.preflight(data) {
             case .response(let response):
                 #expect(response.statusCode == 200)
-            case .requiresMeetingSnapshot:
+            case .requiresMeetingSnapshot, .requiresParticipantWrite:
                 Issue.record("Request sem leitura de reuniões exigiu snapshot")
             }
         }
@@ -112,7 +112,7 @@ struct MCPProtocolHandlerTests {
             switch MCPProtocolHandler.preflight(toolCall) {
             case .requiresMeetingSnapshot:
                 break
-            case .response:
+            case .response, .requiresParticipantWrite:
                 Issue.record("Tool reconhecida e válida não solicitou snapshot")
             }
         }
@@ -428,9 +428,119 @@ struct MCPProtocolHandlerTests {
         }
     }
 
+    @Test("Ferramentas de atualização de participantes são opt-in e falham fechadas por padrão")
+    func participantToolsAreOptInAndValidated() throws {
+        // Padrão (read-only): ferramentas novas ficam ocultas e são recusadas.
+        let blockedList = try callTool("list_folders", arguments: [:])
+        #expect(try dictionary(blockedList["error"])["code"] as? Int == -32602)
+
+        let blockedWriteData = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0",
+            "id": 99,
+            "method": "tools/call",
+            "params": [
+                "name": "update_folder_participants",
+                "arguments": ["folder_id": folderID.uuidString, "expected_participants": ["Ana Silva"]]
+            ]
+        ])
+        switch MCPProtocolHandler.preflight(blockedWriteData, allowsParticipantUpdates: false) {
+        case .response(let response):
+            let decoded = try responseObject(response)
+            #expect(try dictionary(decoded["error"])["code"] as? Int == -32602)
+        case .requiresMeetingSnapshot, .requiresParticipantWrite:
+            Issue.record("Escrita não deveria ser aceita sem opt-in")
+        }
+
+        // Com opt-in ligado: catálogo inclui novas tools, leitura não vaza embeddings e escrita valida entrada.
+        let handler = makeHandler(allowsParticipantUpdates: true)
+        let listReq = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 100, "method": "tools/list", "params": [:]
+        ])
+        let listResp = try responseObject(handler.handle(listReq))
+        let tools = try array(try dictionary(listResp["result"])["tools"]).map { try dictionary($0) }
+        let names = tools.compactMap { $0["name"] as? String }
+        #expect(names == [
+            "search_meetings",
+            "get_meeting",
+            "get_meeting_transcript",
+            "list_folders",
+            "list_known_people",
+            "update_meeting_participants",
+            "update_folder_participants"
+        ])
+
+        let foldersReq = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 101, "method": "tools/call",
+            "params": ["name": "list_folders", "arguments": [:]]
+        ])
+        let foldersResp = try responseObject(handler.handle(foldersReq))
+        let foldersContent = try structuredContent(foldersResp)
+        let folders = try array(foldersContent["folders"]).map { try dictionary($0) }
+        #expect(folders.count == 1)
+        #expect(folders.first?["name"] as? String == "Produto")
+        #expect(folders.first?["meeting_count"] as? Int == 1)
+
+        let peopleReq = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 102, "method": "tools/call",
+            "params": ["name": "list_known_people", "arguments": ["query": "bruno"]]
+        ])
+        let peopleResp = try responseObject(handler.handle(peopleReq))
+        let peopleContent = try structuredContent(peopleResp)
+        let people = try array(peopleContent["people"]).map { try dictionary($0) }
+        #expect(people.count == 1)
+        #expect(people.first?["name"] as? String == "Bruno")
+        #expect(people.first?["has_voice_profile"] as? Bool == false)
+        // Nunca vaza embedding numérico bruto.
+        let rawPeople = try #require(String(data: try JSONSerialization.data(withJSONObject: peopleResp), encoding: .utf8))
+        #expect(!rawPeople.contains("0.987654"))
+
+        let validWriteData = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0",
+            "id": "write-1",
+            "method": "tools/call",
+            "params": [
+                "name": "update_meeting_participants",
+                "arguments": [
+                    "meeting_id": completedID.uuidString,
+                    "speaker_names": ["bruno": "Bruno Costa"],
+                    "expected_participants": ["Ana Silva", "Bruno Costa"]
+                ]
+            ]
+        ])
+        switch MCPProtocolHandler.preflight(validWriteData, allowsParticipantUpdates: true) {
+        case .requiresParticipantWrite(.updateMeetingParticipants(let reqID, let mid, let namesMap, let expected)):
+            #expect(reqID == .string("write-1"))
+            #expect(mid == completedID)
+            #expect(namesMap == ["bruno": "Bruno Costa"])
+            #expect(expected == ["Ana Silva", "Bruno Costa"])
+        default:
+            Issue.record("update_meeting_participants válido deveria pedir requiresParticipantWrite")
+        }
+
+        let genericSpeakerWrite = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0",
+            "id": "write-2",
+            "method": "tools/call",
+            "params": [
+                "name": "update_meeting_participants",
+                "arguments": [
+                    "meeting_id": completedID.uuidString,
+                    "speaker_names": ["bruno": "Participante 1"]
+                ]
+            ]
+        ])
+        switch MCPProtocolHandler.preflight(genericSpeakerWrite, allowsParticipantUpdates: true) {
+        case .response(let response):
+            let obj = try responseObject(response)
+            #expect(try dictionary(obj["result"])["isError"] as? Bool == true)
+        default:
+            Issue.record("Nome genérico deveria falhar no preflight")
+        }
+    }
+
     // MARK: - Fixtures
 
-    private func makeHandler() -> MCPProtocolHandler {
+    private func makeHandler(allowsParticipantUpdates: Bool = false) -> MCPProtocolHandler {
         let completed = MeetingSession(
             id: completedID,
             title: "Planejamento semanal",
@@ -510,7 +620,8 @@ struct MCPProtocolHandlerTests {
                         details: "VOIZ_INTERNAL_FOLDER_DETAILS_SENTINEL"
                     )
                 ]
-            )
+            ),
+            allowsParticipantUpdates: allowsParticipantUpdates
         )
     }
 

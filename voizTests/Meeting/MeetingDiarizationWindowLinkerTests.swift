@@ -632,6 +632,25 @@ struct MeetingDiarizationWindowLinkerTests {
         #expect(linked.stats.durationByCluster["S2"] == 10)
     }
 
+    @Test("Gravação curta com todos os falantes abaixo de 10 s preserva participantes acima de 2 s")
+    func shortRecordingPreservesSpeakersAboveCreationFloor() {
+        let linked = DiarizationWindowLinker.linkDetailed([
+            result(
+                index: 0,
+                start: 0,
+                end: 25,
+                segments: [
+                    segment("a", start: 0, end: 6, embedding: [1, 0]),
+                    segment("b", start: 7, end: 11, embedding: [0, 1])
+                ]
+            )
+        ])
+
+        #expect(linked.stats.demotedClusters.isEmpty)
+        #expect(linked.stats.durationByCluster["S1"] == 6)
+        #expect(linked.stats.durationByCluster["S2"] == 4)
+    }
+
     // MARK: - MAIOR 3+4 — matching por cardinalidade
 
     @Test("Cardinalidade vence a soma: 5 pares de 0,78+ ganham de 4 pares 1,0")

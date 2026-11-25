@@ -24,6 +24,7 @@ final class LocalMCPServer: ObservableObject {
     }
 
     @Published private(set) var isEnabled: Bool
+    @Published private(set) var allowsParticipantUpdates: Bool
     @Published private(set) var status: Status
     @Published private(set) var lastRequestAt: Date?
     @Published private(set) var credentialRevision = 0
@@ -46,6 +47,7 @@ final class LocalMCPServer: ObservableObject {
     }
 
     private static let enabledKey = "voiz.mcp.local.enabled"
+    private static let allowParticipantUpdatesKey = "voiz.mcp.local.allowParticipantUpdates"
     private static let maximumClients = 16
     /// Prazo absoluto, não um timeout de ociosidade. Um peer local não autenticado não pode
     /// conservar um dos slots enviando bytes lentamente para sempre (slowloris).
@@ -60,6 +62,7 @@ final class LocalMCPServer: ObservableObject {
     // O singleton mantém a fonte viva mesmo quando a última janela é fechada. Não há ciclo: o
     // store não referencia o servidor, e um novo ContentView substitui esta referência no attach.
     private var meetingStore: MeetingSessionStore?
+    private var isSessionBusy: (@MainActor (UUID) -> Bool)?
     private var meetingStoreSubscription: AnyCancellable?
     private var cachedMeetingSnapshot: MCPMeetingSnapshot?
     private var snapshotGeneration: UInt64 = 0
@@ -74,6 +77,7 @@ final class LocalMCPServer: ObservableObject {
     private init(defaults: UserDefaults = .standard) {
         let enabled = defaults.bool(forKey: Self.enabledKey)
         self.isEnabled = enabled
+        self.allowsParticipantUpdates = defaults.bool(forKey: Self.allowParticipantUpdatesKey)
         self.status = enabled ? .waitingForMeetingStore : .disabled
         self.credentialLookupLimiter = MCPTokenBucket(
             capacity: Self.credentialLookupBurst,
@@ -88,7 +92,11 @@ final class LocalMCPServer: ObservableObject {
     }
 
     /// Conecta a fonte canônica. Chamar de novo é seguro (previews/recriação de ContentView).
-    func attach(to store: MeetingSessionStore) {
+    func attach(
+        to store: MeetingSessionStore,
+        isSessionBusy: (@MainActor (UUID) -> Bool)? = nil
+    ) {
+        self.isSessionBusy = isSessionBusy
         if meetingStore !== store {
             meetingStore = store
             meetingStoreSubscription?.cancel()
@@ -100,6 +108,12 @@ final class LocalMCPServer: ObservableObject {
             }
         }
         if isEnabled { start() }
+    }
+
+    func setAllowsParticipantUpdates(_ enabled: Bool) {
+        guard enabled != allowsParticipantUpdates else { return }
+        allowsParticipantUpdates = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.allowParticipantUpdatesKey)
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -401,9 +415,13 @@ final class LocalMCPServer: ObservableObject {
 
         lastRequestAt = Date()
         let requestBody = request.body
-        let processingTask = Task.detached(priority: .utility) { [weak self, requestBody] in
+        let allowParticipantUpdates = allowsParticipantUpdates
+        let processingTask = Task.detached(priority: .utility) { [weak self, requestBody, allowParticipantUpdates] in
             guard !Task.isCancelled else { return }
-            let preflight = MCPProtocolHandler.preflight(requestBody)
+            let preflight = MCPProtocolHandler.preflight(
+                requestBody,
+                allowsParticipantUpdates: allowParticipantUpdates
+            )
             guard !Task.isCancelled else { return }
             await self?.finishPreflight(
                 preflight,
@@ -444,6 +462,22 @@ final class LocalMCPServer: ObservableObject {
             }
             activeToolClientID = clientID
             startToolProcessing(requestBody: requestBody, clientID: clientID)
+        case .requiresParticipantWrite(let writeRequest):
+            guard activeToolClientID == nil else {
+                finishProcessing(
+                    MCPHTTPTransport.errorResponse(
+                        MCPHTTPFailure(
+                            status: 429,
+                            message: "Another meeting query is still processing",
+                            extraHeaders: ["Retry-After": "1"]
+                        )
+                    ),
+                    clientID: clientID
+                )
+                return
+            }
+            activeToolClientID = clientID
+            performParticipantWrite(writeRequest, clientID: clientID)
         }
     }
 
@@ -480,15 +514,147 @@ final class LocalMCPServer: ObservableObject {
               activeToolClientID == clientID else { return }
         // A task de captura está terminando; a partir daqui o trabalho é Sendable/utility.
         client.processingTask = nil
-        let processingTask = Task.detached(priority: .utility) { [weak self, snapshot, requestBody] in
+        let allowParticipantUpdates = allowsParticipantUpdates
+        let processingTask = Task.detached(priority: .utility) { [weak self, snapshot, requestBody, allowParticipantUpdates] in
             guard !Task.isCancelled else { return }
-            let response = MCPProtocolHandler(snapshot: snapshot).handle(requestBody)
+            let response = MCPProtocolHandler(
+                snapshot: snapshot,
+                allowsParticipantUpdates: allowParticipantUpdates
+            ).handle(requestBody)
             guard !Task.isCancelled else { return }
             let encodedResponse = MCPHTTPTransport.response(for: response)
             guard !Task.isCancelled else { return }
             await self?.finishProcessing(encodedResponse, clientID: clientID)
         }
         client.processingTask = processingTask
+    }
+
+    private func performParticipantWrite(
+        _ writeRequest: MCPParticipantWriteRequest,
+        clientID: UUID
+    ) {
+        guard let client = clients[clientID], client.phase == .processing,
+              activeToolClientID == clientID else { return }
+        client.processingTask = nil
+        let writeTask = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            guard self.allowsParticipantUpdates else {
+                let response = MCPProtocolHandler.encodeToolError(
+                    id: writeRequest.requestID,
+                    message: "Participant updates are disabled in Voiz settings."
+                )
+                self.finishProcessing(MCPHTTPTransport.response(for: response), clientID: clientID)
+                return
+            }
+            guard let activity = await VoizEditingGate.shared.begin() else {
+                guard !Task.isCancelled else { return }
+                let response = MCPProtocolHandler.encodeToolError(
+                    id: writeRequest.requestID,
+                    message: "Voiz library is busy or unavailable; try again."
+                )
+                self.finishProcessing(MCPHTTPTransport.response(for: response), clientID: clientID)
+                return
+            }
+            defer { activity.finish() }
+            guard !Task.isCancelled else { return }
+
+            let response = self.applyParticipantWrite(writeRequest)
+            self.finishProcessing(MCPHTTPTransport.response(for: response), clientID: clientID)
+        }
+        client.processingTask = writeTask
+    }
+
+    private func applyParticipantWrite(_ writeRequest: MCPParticipantWriteRequest) -> MCPProtocolResponse {
+        let requestID = writeRequest.requestID
+        guard let meetingStore else {
+            return MCPProtocolHandler.encodeToolError(id: requestID, message: "Meeting store unavailable.")
+        }
+
+        switch writeRequest {
+        case .updateMeetingParticipants(_, let meetingID, let speakerNames, let expectedParticipants):
+            guard var session = meetingStore.sessions.first(where: { $0.id == meetingID }) else {
+                return MCPProtocolHandler.encodeToolError(
+                    id: requestID,
+                    message: "Meeting not found. Run search_meetings again."
+                )
+            }
+            guard session.endedAt != nil, !(isSessionBusy?(meetingID) ?? false) else {
+                return MCPProtocolHandler.encodeToolError(
+                    id: requestID,
+                    message: "Meeting is currently recording or processing; try again when finished."
+                )
+            }
+
+            if let speakerNames {
+                let validIDs = Set(session.speakers.map(\.id))
+                let unknown = speakerNames.keys.filter { !validIDs.contains($0) }.sorted()
+                if !unknown.isEmpty {
+                    let available = session.speakers.map { "\($0.id) (\($0.name))" }.joined(separator: ", ")
+                    return MCPProtocolHandler.encodeToolError(
+                        id: requestID,
+                        message: "Unknown speaker_id(s): \(unknown.joined(separator: ", ")). Valid speaker IDs: \(available)"
+                    )
+                }
+                session.applySpeakerNames(speakerNames)
+            }
+
+            if let expectedParticipants {
+                let normalized = MeetingParticipantMemory.normalizeExpectedParticipants(expectedParticipants)
+                session.expectedParticipants = normalized.isEmpty ? nil : normalized
+            }
+
+            guard meetingStore.save(session) else {
+                return MCPProtocolHandler.encodeToolError(
+                    id: requestID,
+                    message: meetingStore.storageError ?? "Failed to save meeting."
+                )
+            }
+            invalidateMeetingSnapshot()
+            let saved = meetingStore.sessions.first(where: { $0.id == meetingID }) ?? session
+            return MCPProtocolHandler.encodeToolSuccess(
+                id: requestID,
+                value: [
+                    "meeting_id": saved.id.uuidString,
+                    "title": saved.title,
+                    "speakers": saved.speakers.map { speaker in
+                        [
+                            "id": speaker.id,
+                            "name": speaker.name,
+                            "source": speaker.source.rawValue
+                        ] as [String: Any]
+                    },
+                    "expected_participants": saved.expectedParticipants ?? []
+                ]
+            )
+
+        case .updateFolderParticipants(_, let folderID, let expectedParticipants):
+            guard let original = meetingStore.folders.first(where: { $0.id == folderID }) else {
+                return MCPProtocolHandler.encodeToolError(
+                    id: requestID,
+                    message: "Folder not found. Run list_folders again."
+                )
+            }
+            let normalized = MeetingParticipantMemory.normalizeExpectedParticipants(expectedParticipants)
+            var updated = original
+            updated.expectedParticipants = normalized.isEmpty ? nil : normalized
+            meetingStore.updateFolder(updated, basedOn: original)
+            guard meetingStore.storageError == nil else {
+                return MCPProtocolHandler.encodeToolError(
+                    id: requestID,
+                    message: meetingStore.storageError ?? "Failed to save folder."
+                )
+            }
+            invalidateMeetingSnapshot()
+            let saved = meetingStore.folders.first(where: { $0.id == folderID }) ?? updated
+            return MCPProtocolHandler.encodeToolSuccess(
+                id: requestID,
+                value: [
+                    "folder_id": saved.id.uuidString,
+                    "name": saved.name,
+                    "expected_participants": saved.expectedParticipants ?? []
+                ]
+            )
+        }
     }
 
     private func finishProcessing(_ data: Data, clientID: UUID) {
