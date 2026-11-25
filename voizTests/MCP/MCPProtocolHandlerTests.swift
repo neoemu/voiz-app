@@ -538,6 +538,112 @@ struct MCPProtocolHandlerTests {
         }
     }
 
+    @Test("Preserva IDs numéricos grandes de JSON-RPC sem perda nem trap")
+    func preservesLargeNumericRequestIDsLosslessly() throws {
+        let cases: [(rawID: String, expected: MCPRequestID)] = [
+            ("9223372036854775807", .int64(Int64.max)),
+            ("9007199254740993", .int64(9_007_199_254_740_993)),
+            ("-9223372036854775808", .int64(Int64.min)),
+            ("1.5", .double(1.5))
+        ]
+
+        for entry in cases {
+            let payload = """
+            {"jsonrpc":"2.0","id":\(entry.rawID),"method":"tools/call","params":{"name":"update_meeting_participants","arguments":{"meeting_id":"\(completedID.uuidString)","speaker_names":{"bruno":"Bruno Costa"}}}}
+            """
+            let data = Data(payload.utf8)
+            switch MCPProtocolHandler.preflight(data, allowsParticipantUpdates: true) {
+            case .requiresParticipantWrite(.updateMeetingParticipants(let reqID, _, _, _)):
+                #expect(reqID == entry.expected)
+                let response = MCPProtocolHandler.encodeToolSuccess(id: reqID, value: ["ok": true])
+                #expect(response.statusCode == 200)
+                let body = try #require(response.body)
+                let rawResponse = try #require(String(data: body, encoding: .utf8))
+                #expect(rawResponse.contains("\"id\":\(entry.rawID)"))
+            default:
+                Issue.record("update_meeting_participants com id \(entry.rawID) deveria pedir requiresParticipantWrite")
+            }
+        }
+
+        let unsignedMaxID = MCPRequestID(any: NSNumber(value: UInt64.max))
+        #expect(unsignedMaxID == .uint64(UInt64.max))
+        let errorResp = MCPProtocolHandler.encodeToolError(id: unsignedMaxID, message: "erro controlado")
+        #expect(errorResp.statusCode == 200)
+        let errorBody = try #require(errorResp.body)
+        let errorRaw = try #require(String(data: errorBody, encoding: .utf8))
+        #expect(errorRaw.contains("\"id\":\(UInt64.max)"))
+    }
+
+    @Test("list_known_people filtra todo o histórico antes de aplicar limit")
+    func listKnownPeopleSearchesFullIndexBeyondTop100() async throws {
+        var sessions: [MeetingSession] = []
+        for index in 1...120 {
+            let personName = String(format: "Pessoa %03d", index)
+            for copy in 0..<2 {
+                let offset = TimeInterval((index * 2 + copy) * 60)
+                sessions.append(
+                    MeetingSession(
+                        title: "Sync recorrente",
+                        startedAt: Date(timeIntervalSince1970: 1_900_000_000 - offset),
+                        endedAt: Date(timeIntervalSince1970: 1_900_000_000 - offset + 1_800),
+                        speakers: [
+                            MeetingSpeaker(id: "S1", source: .systemAudio, name: personName)
+                        ],
+                        isProcessingCompleted: true
+                    )
+                )
+            }
+        }
+        sessions.append(
+            MeetingSession(
+                title: "Conversa pontual",
+                startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                endedAt: Date(timeIntervalSince1970: 1_800_001_200),
+                speakers: [
+                    MeetingSpeaker(id: "S1", source: .systemAudio, name: "Zelia Queiroz")
+                ],
+                isProcessingCompleted: true
+            )
+        )
+
+        let syncSnapshot = MCPMeetingSnapshot(sessions: sessions, folders: [])
+        let asyncSnapshot = try await MCPMeetingSnapshot.capture(sessions: sessions, folders: [])
+
+        for snapshot in [syncSnapshot, asyncSnapshot] {
+            let handler = MCPProtocolHandler(snapshot: snapshot, allowsParticipantUpdates: true)
+            let searchRequest = try JSONSerialization.data(withJSONObject: [
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "tools/call",
+                "params": [
+                    "name": "list_known_people",
+                    "arguments": ["query": "Zelia"]
+                ]
+            ])
+            let searchResponse = try responseObject(handler.handle(searchRequest))
+            let searchContent = try structuredContent(searchResponse)
+            let searchPeople = try array(searchContent["people"]).map { try dictionary($0) }
+            #expect(searchContent["total_matches"] as? Int == 1)
+            #expect(searchPeople.count == 1)
+            #expect(searchPeople.first?["name"] as? String == "Zelia Queiroz")
+
+            let pageRequest = try JSONSerialization.data(withJSONObject: [
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "tools/call",
+                "params": [
+                    "name": "list_known_people",
+                    "arguments": ["limit": 50]
+                ]
+            ])
+            let pageResponse = try responseObject(handler.handle(pageRequest))
+            let pageContent = try structuredContent(pageResponse)
+            let pagePeople = try array(pageContent["people"]).map { try dictionary($0) }
+            #expect(pageContent["total_matches"] as? Int == 121)
+            #expect(pagePeople.count == 50)
+        }
+    }
+
     // MARK: - Fixtures
 
     private func makeHandler(allowsParticipantUpdates: Bool = false) -> MCPProtocolHandler {
