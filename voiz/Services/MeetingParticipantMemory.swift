@@ -71,14 +71,29 @@ nonisolated enum MeetingParticipantMemory {
     static let minimumAmbiguityMargin: Float = 0.05
 
     private static let exactGenericLabels: Set<String> = [
-        "voce", "you",
-        "outros na chamada", "others on the call",
-        "outros", "others",
-        "eles", "them",
-        "participantes", "participants",
-        "participante", "participant",
-        "speaker", "falante",
-        "desconhecido", "unknown"
+        // "Você" across supported locales
+        "voce", "you", "tu", "vous", "du", "あなた", "你",
+        // "Outros na chamada" across supported locales
+        "outros na chamada",
+        "others on the call",
+        "otros en la llamada",
+        "autres participants a l'appel",
+        "andere im anruf",
+        "通話中の他の参加者",
+        "通话中的其他人",
+        // Generic group / unassigned labels
+        "outros", "others", "otros", "autres", "andere",
+        "eles", "them", "ellos",
+        "participantes", "participante",
+        "participants", "participant",
+        "teilnehmende", "teilnehmer", "teilnehmerin",
+        "参加者", "参与者", "参会人", "参会者",
+        "speaker", "falante", "hablante",
+        "intervenant", "intervenante", "locuteur", "locutrice",
+        "sprecher", "sprecherin",
+        "話者", "发言人", "说话人",
+        "desconhecido", "unknown", "desconocido",
+        "inconnu", "inconnue", "unbekannt", "不明", "未知"
     ]
 
     private static let statusHeaderKeywords: Set<String> = [
@@ -115,11 +130,19 @@ nonisolated enum MeetingParticipantMemory {
     }
 
     static func isGenericSpeakerLabel(_ name: String) -> Bool {
-        let key = canonicalKey(name)
+        let key = name
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "‘", with: "'")
+            .folding(options: [.diacriticInsensitive, .caseInsensitive, .widthInsensitive], locale: nil)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
         guard !key.isEmpty else { return true }
         if exactGenericLabels.contains(key) { return true }
         if key.range(of: #"^s\d{1,3}$"#, options: .regularExpression) != nil { return true }
-        if key.range(of: #"^(participante|participant|speaker|falante)[\s_-]*\d+$"#, options: .regularExpression) != nil {
+        if key.range(
+            of: #"^(participante|participant|speaker|falante|teilnehmer|teilnehmerin|teilnehmende|sprecher|sprecherin|hablante|intervenant|intervenante|locuteur|locutrice|参加者|話者|参与者|参会人|参会者|发言人|说话人)[\s_-]*\d+$"#,
+            options: .regularExpression
+        ) != nil {
             return true
         }
         return false
