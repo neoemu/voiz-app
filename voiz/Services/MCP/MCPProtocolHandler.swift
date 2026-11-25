@@ -12,19 +12,29 @@ nonisolated struct MCPProtocolResponse: Sendable {
 /// Identificador JSON-RPC Sendable para cruzar entre preflight e o MainActor.
 nonisolated enum MCPRequestID: Sendable, Equatable {
     case string(String)
-    case number(Double, isInteger: Bool)
+    case int64(Int64)
+    case uint64(UInt64)
+    case decimal(Decimal)
+    case double(Double)
     case null
 
     init(any raw: Any) {
         if let str = raw as? String {
             self = .string(str)
+        } else if let decimal = raw as? NSDecimalNumber {
+            let value = decimal.decimalValue
+            self = value.isNaN ? .null : .decimal(value)
         } else if let num = raw as? NSNumber, CFGetTypeID(num) != CFBooleanGetTypeID() {
-            let value = num.doubleValue
-            let isInt = value.isFinite
-                && value.rounded(.towardZero) == value
-                && value >= Double(Int64.min)
-                && value <= Double(Int64.max)
-            self = .number(value, isInteger: isInt)
+            if CFGetTypeID(num) == CFNumberGetTypeID(), !CFNumberIsFloatType(num) {
+                if num.compare(NSNumber(value: Int64.max)) == .orderedDescending {
+                    self = .uint64(num.uint64Value)
+                } else {
+                    self = .int64(num.int64Value)
+                }
+            } else {
+                let value = num.doubleValue
+                self = value.isFinite ? .double(value) : .null
+            }
         } else {
             self = .null
         }
@@ -33,7 +43,10 @@ nonisolated enum MCPRequestID: Sendable, Equatable {
     var jsonValue: Any {
         switch self {
         case .string(let value): return value
-        case .number(let value, let isInt): return isInt ? NSNumber(value: Int64(value)) : NSNumber(value: value)
+        case .int64(let value): return NSNumber(value: value)
+        case .uint64(let value): return NSNumber(value: value)
+        case .decimal(let value): return NSDecimalNumber(decimal: value)
+        case .double(let value): return NSNumber(value: value)
         case .null: return NSNull()
         }
     }
@@ -257,7 +270,7 @@ nonisolated struct MCPMeetingSnapshot: Sendable {
                 expectedParticipants: MeetingParticipantMemory.normalizeExpectedParticipants($0.expectedParticipants ?? [])
             )
         }
-        self.knownPeople = MeetingParticipantMemory.knownPeople(from: sessions, folders: folders, limit: 100)
+        self.knownPeople = MeetingParticipantMemory.knownPeople(from: sessions, folders: folders, limit: nil)
         self.sessions = sessions.map { session in
             Session(
                 id: session.id,
@@ -468,7 +481,7 @@ nonisolated struct MCPMeetingSnapshot: Sendable {
             )
         }
         try checkCaptureState()
-        let knownPeople = MeetingParticipantMemory.knownPeople(from: sessions, folders: folders, limit: 100)
+        let knownPeople = MeetingParticipantMemory.knownPeople(from: sessions, folders: folders, limit: nil)
         return MCPMeetingSnapshot(
             mappedSessions: mappedSessions,
             mappedFolders: mappedFolders,

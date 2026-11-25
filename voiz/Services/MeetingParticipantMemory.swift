@@ -425,7 +425,7 @@ nonisolated enum MeetingParticipantMemory {
         excluding sessionID: UUID? = nil,
         preferredFolderID: UUID? = nil,
         referenceTitle: String? = nil,
-        limit: Int = 25
+        limit: Int? = 25
     ) -> [MeetingKnownPerson] {
         struct Entry {
             var bestName: String
@@ -491,7 +491,7 @@ nonisolated enum MeetingParticipantMemory {
             }
         }
 
-        return entries.values
+        let sorted = entries.values
             .map {
                 MeetingKnownPerson(
                     name: $0.bestName,
@@ -507,8 +507,10 @@ nonisolated enum MeetingParticipantMemory {
                 if lhs.meetingCount != rhs.meetingCount { return lhs.meetingCount > rhs.meetingCount }
                 return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
-            .prefix(limit)
-            .map { $0 }
+        if let limit {
+            return Array(sorted.prefix(max(0, limit)))
+        }
+        return sorted
     }
 
     private static func preferName(_ candidate: String, over current: String) -> Bool {
