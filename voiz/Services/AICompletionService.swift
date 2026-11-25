@@ -29,15 +29,30 @@ final class AICompletionService: ObservableObject {
     /// Valor de `reasoning_effort`; `nil` omite o campo (fica o default do modelo).
     private var reasoningEffort: String?
     /// Modelos de raciocínio recentes rejeitam `temperature` com 400 — nesses, o campo não vai.
-    private var acceptsTemperature: Bool = true
+    private var acceptsTemperature: Bool
 
-    init(provider: AppSettings.TranslationProvider = .openai, apiKey: String = "", model: String = "gpt-6-luna", baseURL: String? = nil, reasoningEffort: String? = nil, session: URLSession? = nil) {
+    init(
+        provider: AppSettings.TranslationProvider = .openai,
+        apiKey: String = "",
+        model: String = "gpt-6-luna",
+        baseURL: String? = nil,
+        reasoningEffort: String? = nil,
+        acceptsTemperature: Bool? = nil,
+        session: URLSession? = nil
+    ) {
         self.session = session ?? Self.makeSession()
         self.provider = provider
         self.apiKey = apiKey
         self.model = model
         self.baseURLOverride = (baseURL?.isEmpty == false) ? baseURL : nil
         self.reasoningEffort = reasoningEffort
+        self.acceptsTemperature = acceptsTemperature
+            ?? AppSettings.acceptsTemperature(for: AppSettings.ModelChoice(provider: provider, modelId: model))
+    }
+
+    convenience init(settings: AppSettings, choice: AppSettings.ModelChoice? = nil, session: URLSession? = nil) {
+        self.init(session: session)
+        apply(settings, choice: choice)
     }
 
     /// Reaponta o serviço para um modelo. Sem `choice`, vale o provider/modelo das Configurações;
@@ -58,6 +73,7 @@ final class AICompletionService: ObservableObject {
 
     func setProvider(_ provider: AppSettings.TranslationProvider) {
         self.provider = provider
+        acceptsTemperature = AppSettings.acceptsTemperature(for: AppSettings.ModelChoice(provider: provider, modelId: model))
     }
 
     func setBaseURL(_ url: String?) {
@@ -70,6 +86,7 @@ final class AICompletionService: ObservableObject {
 
     func setModel(_ modelId: String) {
         self.model = modelId
+        acceptsTemperature = AppSettings.acceptsTemperature(for: AppSettings.ModelChoice(provider: provider, modelId: modelId))
     }
 
     func setReasoningEffort(_ effort: String?) {

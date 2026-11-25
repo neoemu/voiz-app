@@ -425,12 +425,16 @@ nonisolated struct AppSettings: Codable, Equatable {
         Self.clamp(reasoningEffort, to: supportedReasoningEfforts(for: choice))
     }
 
-    func acceptsTemperature(for choice: ModelChoice) -> Bool {
+    static func acceptsTemperature(for choice: ModelChoice) -> Bool {
         switch choice.provider {
         case .openai: return TranslationModel(rawValue: choice.modelId)?.acceptsTemperature ?? true
         case .anthropic: return AnthropicModel(rawValue: choice.modelId)?.acceptsTemperature ?? true
         case .xai, .gemini, .custom: return true
         }
+    }
+
+    func acceptsTemperature(for choice: ModelChoice) -> Bool {
+        Self.acceptsTemperature(for: choice)
     }
 
     /// A escolha ainda pode ser usada? Uma chave apagada nas Configurações não deve deixar a tela

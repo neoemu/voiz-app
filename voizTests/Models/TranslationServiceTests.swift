@@ -148,6 +148,68 @@ struct TranslationServiceTests {
         }
     }
 
+    @Test("Direct AICompletionService init omits temperature for Anthropic 5.x/5.5 and OpenAI reasoning models")
+    func directCompletionInitRespectsTemperatureSupport() async throws {
+        let session = session()
+        defer { session.invalidateAndCancel(); TranslationURLProtocol.handler = nil }
+
+        let directService = AICompletionService(
+            provider: .anthropic,
+            apiKey: "fixture-anthropic",
+            model: "claude-sonnet-5-5",
+            session: session
+        )
+        TranslationURLProtocol.handler = { request in
+            let body = try TranslationURLProtocol.body(request)
+            #expect(request.url?.path == "/v1/messages")
+            #expect(body["model"] as? String == "claude-sonnet-5-5")
+            #expect(body["temperature"] == nil)
+            if body["stream"] as? Bool == true {
+                let sse = "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"OK\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n"
+                return (200, Data(sse.utf8))
+            }
+            return (200, Data(#"{"content":[{"type":"text","text":"OK"}],"stop_reason":"end_turn"}"#.utf8))
+        }
+        #expect(try await directService.complete(prompt: "Teste", temperature: 0.2) == "OK")
+        #expect(try await directService.completeAccumulating(prompt: "Teste", temperature: 0.2) == "OK")
+
+        for (provider, modelID, expectsTemp) in [
+            (AppSettings.TranslationProvider.anthropic, "claude-haiku-5-5", false),
+            (.anthropic, "claude-opus-5-5", false),
+            (.anthropic, "claude-fable-5-2", false),
+            (.anthropic, "claude-haiku-4-5", true),
+            (.openai, "gpt-6-luna", false)
+        ] {
+            var settings = AppSettings()
+            settings.translationProvider = provider
+            settings.anthropicKey = "fixture-anthropic"
+            settings.openAIKey = "fixture-openai"
+            if provider == .anthropic {
+                settings.anthropicModel = try #require(.init(rawValue: modelID))
+            } else {
+                settings.translationModel = try #require(.init(rawValue: modelID))
+            }
+
+            let settingsService = AICompletionService(settings: settings, session: session)
+            TranslationURLProtocol.handler = { request in
+                let body = try TranslationURLProtocol.body(request)
+                #expect(body["model"] as? String == modelID)
+                if expectsTemp {
+                    #expect(body["temperature"] as? Double == 0.2)
+                } else {
+                    #expect(body["temperature"] == nil)
+                }
+                if provider == .openai {
+                    let sse = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"OK\"}\n\ndata: {\"type\":\"response.completed\"}\n\n"
+                    return (200, Data(sse.utf8))
+                }
+                let sse = "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"OK\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n"
+                return (200, Data(sse.utf8))
+            }
+            #expect(try await settingsService.completeAccumulating(prompt: "Teste", temperature: 0.2) == "OK")
+        }
+    }
+
     @Test("The selected provider without a key does not fall back to a different configured provider")
     func missingKeyDoesNotChangeProvider() async {
         let session = session()

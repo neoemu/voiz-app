@@ -84,9 +84,7 @@ final class ScheduledMeetingModel: ObservableObject {
                 guard requestID == token else { return }
                 guard let userMessage = draft.messages.last, userMessage.role == .user,
                       store.saveScheduledDraft(draft) else { throw CocoaError(.fileWriteUnknown) }
-                let service = complete == nil ? AICompletionService(provider: settings.translationProvider, apiKey: settings.currentAPIKey,
-                    model: settings.currentModelId, baseURL: settings.currentBaseURL,
-                    reasoningEffort: settings.currentReasoningEffort) : nil
+                let service = complete == nil ? AICompletionService(settings: settings) : nil
                 let completion: Completion = complete ?? { prompt, _ in
                     try await service!.completeAccumulating(prompt: prompt, temperature: 0.2)
                 }
