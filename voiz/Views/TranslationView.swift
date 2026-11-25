@@ -529,13 +529,21 @@ struct ModelIndicatorBadge: View {
         switch viewModel.settings.translationProvider {
         case .openai:
             switch viewModel.settings.translationModel {
+            case .gpt6Luna: return "GPT-6 Luna"
+            case .gpt61Terra: return "GPT-6.1 Terra"
+            case .gpt62Sol: return "GPT-6.2 Sol"
+            case .gpt62Astra: return "GPT-6.2 Astra"
+            case .gpt6Astra: return "GPT-6 Astra"
             case .gpt56Luna: return "GPT-5.6 Luna"
             case .gpt56Terra: return "GPT-5.6 Terra"
             case .gpt56Sol: return "GPT-5.6 Sol"
-            case .gpt6Astra: return "GPT-6 Astra"
             }
         case .anthropic:
             switch viewModel.settings.anthropicModel {
+            case .haiku55: return "Haiku 5.5"
+            case .sonnet55: return "Sonnet 5.5"
+            case .opus55: return "Opus 5.5"
+            case .fable52: return "Fable 5.2"
             case .haiku45: return "Haiku 4.5"
             case .sonnet5: return "Sonnet 5"
             case .opus5: return "Opus 5"
@@ -543,6 +551,7 @@ struct ModelIndicatorBadge: View {
             }
         case .xai:
             switch viewModel.settings.xaiModel {
+            case .grok47: return "Grok 4.7"
             case .grok420NonReasoning: return "Grok 4.20"
             case .grok45: return "Grok 4.5"
             case .grok46: return "Grok 4.6"
@@ -552,6 +561,10 @@ struct ModelIndicatorBadge: View {
             }
         case .gemini:
             switch viewModel.settings.geminiModel {
+            case .gemini4Carbon: return "Gemini 4 Carbon"
+            case .gemini4Neon: return "Gemini 4 Neon"
+            case .gemini4Hydrogen: return "Gemini 4 Hydrogen"
+            case .gemini4Argon: return "Gemini 4 Argon"
             case .gemini38Flash: return "Gemini 3.8"
             case .gemini37Flash: return "Gemini 3.7"
             case .gemini31FlashLite: return "Gemini 3.1 Lite"

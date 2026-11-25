@@ -487,7 +487,7 @@ struct VoizSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(icon: "brain", title: "Modelo", subtitle: "Nome exato do modelo no seu endpoint") {
-                    plainField($viewModel.settings.customModel, placeholder: "gpt-5.6-luna")
+                    plainField($viewModel.settings.customModel, placeholder: "gpt-6-luna")
                 }
             }
 

@@ -54,13 +54,24 @@ struct TranslationServiceTests {
         let session = session()
         defer { session.invalidateAndCancel(); TranslationURLProtocol.handler = nil }
         let choices: [(AppSettings.TranslationProvider, String, String)] = [
+            (.xai, "grok-4.7", "xhigh"),
             (.xai, "grok-4.6", "xhigh"),
+            (.xai, "grok-4.3", "xhigh"),
+            (.openai, "gpt-6.2-astra", "max"),
+            (.openai, "gpt-6.2-sol", "max"),
+            (.openai, "gpt-6.1-terra", "max"),
+            (.openai, "gpt-6-luna", "max"),
             (.openai, "gpt-6-astra", "max"),
+            (.anthropic, "claude-fable-5-2", "max"),
+            (.anthropic, "claude-opus-5-5", "max"),
+            (.anthropic, "claude-sonnet-5-5", "max"),
+            (.anthropic, "claude-haiku-5-5", "max"),
             (.anthropic, "claude-fable-5-1", "max"),
+            (.gemini, "gemini-4-carbon", "high"),
+            (.gemini, "gemini-4-neon", "xhigh"),
+            (.gemini, "gemini-4-hydrogen", "xhigh"),
+            (.gemini, "gemini-4-argon", "high"),
             (.gemini, "gemini-3.8-flash", "high"),
-            (.gemini, "gemini-3.7-flash", "high"),
-            (.gemini, "gemini-3.1-flash-lite", "high"),
-            (.xai, "grok-4.3", "high"),
             (.gemini, "gemini-2.5-flash", "high")
         ]
         for (provider, model, effort) in choices {
@@ -110,11 +121,30 @@ struct TranslationServiceTests {
         var settings = AppSettings()
         settings.reasoningEffort = .none
         for choice in [
-            AppSettings.ModelChoice(provider: .xai, modelId: "grok-4.6"),
+            AppSettings.ModelChoice(provider: .xai, modelId: "grok-4.7"),
+            .init(provider: .xai, modelId: "grok-4.6"),
+            .init(provider: .openai, modelId: "gpt-6.2-astra"),
+            .init(provider: .openai, modelId: "gpt-6.2-sol"),
             .init(provider: .openai, modelId: "gpt-6-astra"),
-            .init(provider: .anthropic, modelId: "claude-fable-5-1")
+            .init(provider: .anthropic, modelId: "claude-fable-5-2"),
+            .init(provider: .anthropic, modelId: "claude-opus-5-5"),
+            .init(provider: .anthropic, modelId: "claude-sonnet-5-5"),
+            .init(provider: .anthropic, modelId: "claude-haiku-5-5"),
+            .init(provider: .anthropic, modelId: "claude-fable-5-1"),
+            .init(provider: .gemini, modelId: "gemini-4-carbon"),
+            .init(provider: .gemini, modelId: "gemini-4-neon"),
+            .init(provider: .gemini, modelId: "gemini-4-hydrogen"),
+            .init(provider: .gemini, modelId: "gemini-4-argon")
         ] {
             #expect(settings.effectiveReasoningEffort(for: choice) == .low)
+        }
+
+        for choice in [
+            AppSettings.ModelChoice(provider: .openai, modelId: "gpt-6-luna"),
+            .init(provider: .openai, modelId: "gpt-6.1-terra"),
+            .init(provider: .xai, modelId: "grok-4.3")
+        ] {
+            #expect(settings.effectiveReasoningEffort(for: choice) == .none)
         }
     }
 

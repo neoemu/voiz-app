@@ -107,19 +107,23 @@ struct DebugConsoleSection: View {
     
     private var modelShortName: String {
         switch viewModel.settings.translationModel {
+        case .gpt6Luna: return "6 Luna"
+        case .gpt61Terra: return "6.1 Terra"
+        case .gpt62Sol: return "6.2 Sol"
+        case .gpt62Astra: return "6.2 Astra"
+        case .gpt6Astra: return "6 Astra"
         case .gpt56Luna: return "5.6 Luna"
         case .gpt56Terra: return "5.6 Terra"
         case .gpt56Sol: return "5.6 Sol"
-        case .gpt6Astra: return "6 Astra"
         }
     }
     
     private var modelColor: Color {
         switch viewModel.settings.translationModel {
-        case .gpt56Luna: return .blue
-        case .gpt56Terra: return .teal
-        case .gpt56Sol: return .green
-        case .gpt6Astra: return .purple
+        case .gpt6Luna, .gpt56Luna: return .blue
+        case .gpt61Terra, .gpt56Terra: return .teal
+        case .gpt62Sol, .gpt56Sol: return .green
+        case .gpt62Astra, .gpt6Astra: return .purple
         }
     }
 }
