@@ -31,7 +31,7 @@ final class AICompletionService: ObservableObject {
     /// Modelos de raciocínio recentes rejeitam `temperature` com 400 — nesses, o campo não vai.
     private var acceptsTemperature: Bool = true
 
-    init(provider: AppSettings.TranslationProvider = .openai, apiKey: String = "", model: String = "gpt-5.6-luna", baseURL: String? = nil, reasoningEffort: String? = nil, session: URLSession? = nil) {
+    init(provider: AppSettings.TranslationProvider = .openai, apiKey: String = "", model: String = "gpt-6-luna", baseURL: String? = nil, reasoningEffort: String? = nil, session: URLSession? = nil) {
         self.session = session ?? Self.makeSession()
         self.provider = provider
         self.apiKey = apiKey

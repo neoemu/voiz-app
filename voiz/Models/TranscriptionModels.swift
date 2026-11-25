@@ -295,10 +295,10 @@ nonisolated struct AppSettings: Codable, Equatable {
     var anthropicKey: String = ""
     var xaiKey: String = ""
     var geminiKey: String = ""
-    var translationModel: TranslationModel = .gpt56Luna
-    var anthropicModel: AnthropicModel = .haiku45
+    var translationModel: TranslationModel = .gpt6Luna
+    var anthropicModel: AnthropicModel = .haiku55
     var xaiModel: XAIModel = .grok420NonReasoning
-    var geminiModel: GeminiModel = .gemini36Flash
+    var geminiModel: GeminiModel = .gemini4Hydrogen
 
     /// Esforço de raciocínio pedido ao modelo ativo. Um valor só para todos os provedores: só um
     /// fica ativo por vez, e o clamp em `effectiveReasoningEffort` cuida das faixas diferentes.
@@ -716,19 +716,27 @@ nonisolated struct AppSettings: Codable, Equatable {
         static let ladder: [ReasoningEffort] = [.none, .low, .medium, .high, .xhigh, .max]
     }
 
-    /// Catálogo conferido em 10/09/2026; fontes em docs/AI_MODEL_CATALOG.md.
+    /// Catálogo conferido em 25/11/2026; fontes na documentação da OpenAI API.
     enum TranslationModel: String, CaseIterable, Codable {
+        case gpt6Luna = "gpt-6-luna"
+        case gpt61Terra = "gpt-6.1-terra"
+        case gpt62Sol = "gpt-6.2-sol"
+        case gpt62Astra = "gpt-6.2-astra"
+        case gpt6Astra = "gpt-6-astra"
         case gpt56Luna = "gpt-5.6-luna"
         case gpt56Terra = "gpt-5.6-terra"
         case gpt56Sol = "gpt-5.6-sol"
-        case gpt6Astra = "gpt-6-astra"
 
         var displayName: String {
             switch self {
+            case .gpt6Luna: return "GPT-6 Luna"
+            case .gpt61Terra: return "GPT-6.1 Terra"
+            case .gpt62Sol: return "GPT-6.2 Sol"
+            case .gpt62Astra: return "GPT-6.2 Astra"
+            case .gpt6Astra: return "GPT-6 Astra"
             case .gpt56Luna: return "GPT-5.6 Luna"
             case .gpt56Terra: return "GPT-5.6 Terra"
             case .gpt56Sol: return "GPT-5.6 Sol"
-            case .gpt6Astra: return "GPT-6 Astra"
             }
         }
 
@@ -738,24 +746,24 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var description: String {
             switch self {
-            case .gpt56Luna: return String(localized: "Rápido e econômico")
-            case .gpt56Terra: return String(localized: "Equilíbrio entre custo e qualidade")
-            case .gpt56Sol: return String(localized: "Mais capaz em tarefas longas")
-            case .gpt6Astra: return String(localized: "Máxima qualidade, mais caro")
+            case .gpt6Luna: return String(localized: "Rápido e econômico")
+            case .gpt61Terra: return String(localized: "Equilíbrio entre custo e qualidade")
+            case .gpt62Sol: return String(localized: "Mais capaz em tarefas longas")
+            case .gpt62Astra: return String(localized: "Máxima qualidade, mais caro")
+            case .gpt6Astra: return String(localized: "Geração anterior, raciocínio profundo")
+            case .gpt56Luna, .gpt56Terra: return String(localized: "Geração anterior, econômico")
+            case .gpt56Sol: return String(localized: "Geração anterior, raciocínio profundo")
             }
         }
 
-        /// `xhigh` e `max` ficam expostos no Terra e no Luna: são baratos o bastante para valer a
-        /// pena rodar nos tiers altos. No Sol, o mesmo esforço custa 5x mais por token.
-        ///
-        /// Os dois degraus do topo só existem pela Responses API — em `chat/completions` a OpenAI
-        /// devolve "does not support 'max' with this model", mesmo a página do modelo listando o
-        /// valor. É por isso que este provider usa `/v1/responses`.
+        /// `xhigh` e `max` ficam expostos nos tiers compatíveis via `/v1/responses` (em
+        /// `chat/completions` a OpenAI não aceita `max`). Os modelos `gpt-6.2-*` e `gpt-6-astra`
+        /// sempre raciocinam e rejeitam `none`.
         var supportedReasoningEfforts: [ReasoningEffort] {
             switch self {
-            case .gpt56Luna, .gpt56Terra: return ReasoningEffort.ladder
+            case .gpt6Luna, .gpt61Terra, .gpt56Luna, .gpt56Terra: return ReasoningEffort.ladder
+            case .gpt62Sol, .gpt62Astra, .gpt6Astra: return [.low, .medium, .high, .xhigh, .max]
             case .gpt56Sol: return [.none, .low, .medium, .high]
-            case .gpt6Astra: return [.low, .medium, .high, .xhigh, .max]
             }
         }
 
@@ -931,6 +939,10 @@ nonisolated struct AppSettings: Codable, Equatable {
     }
 
     enum AnthropicModel: String, CaseIterable, Codable {
+        case haiku55 = "claude-haiku-5-5"
+        case sonnet55 = "claude-sonnet-5-5"
+        case opus55 = "claude-opus-5-5"
+        case fable52 = "claude-fable-5-2"
         case haiku45 = "claude-haiku-4-5"
         case sonnet5 = "claude-sonnet-5"
         case opus5 = "claude-opus-5"
@@ -938,6 +950,10 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var displayName: String {
             switch self {
+            case .haiku55: return "Claude Haiku 5.5"
+            case .sonnet55: return "Claude Sonnet 5.5"
+            case .opus55: return "Claude Opus 5.5"
+            case .fable52: return "Claude Fable 5.2"
             case .haiku45: return "Claude Haiku 4.5"
             case .sonnet5: return "Claude Sonnet 5"
             case .opus5: return "Claude Opus 5"
@@ -949,30 +965,37 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var description: String {
             switch self {
-            case .haiku45: return String(localized: "Rápido e econômico")
-            case .sonnet5: return String(localized: "Equilíbrio entre custo e qualidade")
-            case .opus5: return String(localized: "Mais capaz em tarefas longas")
-            case .fable51: return String(localized: "Máxima qualidade, mais caro")
+            case .haiku55: return String(localized: "Rápido e econômico")
+            case .sonnet55: return String(localized: "Equilíbrio entre custo e qualidade")
+            case .opus55: return String(localized: "Mais capaz em tarefas longas")
+            case .fable52: return String(localized: "Máxima qualidade, mais caro")
+            case .haiku45, .sonnet5: return String(localized: "Geração anterior, econômico")
+            case .opus5, .fable51: return String(localized: "Geração anterior, raciocínio profundo")
             }
         }
 
-        /// O Haiku 4.5 é da geração anterior e **rejeita** `output_config.effort`; a família 5
+        /// O Haiku 4.5 é da geração anterior e **rejeita** `output_config.effort`; a família 5/5.5
         /// aceita a escala, menos o "nenhum" — desligar o raciocínio nesses modelos tem efeitos
         /// colaterais documentados (tags internas vazando no texto), então o mínimo aqui é `low`.
         var supportedReasoningEfforts: [ReasoningEffort] {
             switch self {
             case .haiku45: return []
             case .sonnet5, .opus5: return [.low, .medium, .high]
-            case .fable51: return [.low, .medium, .high, .xhigh, .max]
+            case .haiku55, .sonnet55, .opus55, .fable52, .fable51:
+                return [.low, .medium, .high, .xhigh, .max]
             }
         }
 
-        /// Só o Haiku 4.5 ainda aceita `temperature`; na família 5 o parâmetro foi removido e a
+        /// Só o Haiku 4.5 ainda aceita `temperature`; na família 5/5.5 o parâmetro foi removido e a
         /// requisição volta 400.
         var acceptsTemperature: Bool { self == .haiku45 }
     }
 
     enum GeminiModel: String, CaseIterable, Codable {
+        case gemini4Carbon = "gemini-4-carbon"
+        case gemini4Neon = "gemini-4-neon"
+        case gemini4Hydrogen = "gemini-4-hydrogen"
+        case gemini4Argon = "gemini-4-argon"
         case gemini38Flash = "gemini-3.8-flash"
         case gemini37Flash = "gemini-3.7-flash"
         case gemini36Flash = "gemini-3.6-flash"
@@ -985,6 +1008,10 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var displayName: String {
             switch self {
+            case .gemini4Carbon: return "Gemini 4 Carbon"
+            case .gemini4Neon: return "Gemini 4 Neon"
+            case .gemini4Hydrogen: return "Gemini 4 Hydrogen"
+            case .gemini4Argon: return "Gemini 4 Argon"
             case .gemini38Flash: return "Gemini 3.8 Flash"
             case .gemini37Flash: return "Gemini 3.7 Flash"
             case .gemini31FlashLite: return "Gemini 3.1 Flash-Lite"
@@ -1001,7 +1028,11 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var description: String {
             switch self {
-            case .gemini38Flash: return String(localized: "Mais recente e mais capaz")
+            case .gemini4Carbon: return String(localized: "Mais recente e mais capaz")
+            case .gemini4Neon: return String(localized: "Equilíbrio de velocidade e qualidade")
+            case .gemini4Hydrogen: return String(localized: "Mais rápido e barato")
+            case .gemini4Argon: return String(localized: "Mais capaz em tarefas longas")
+            case .gemini38Flash: return String(localized: "Equilíbrio de velocidade e qualidade")
             case .gemini37Flash: return String(localized: "Mais capaz em tarefas longas")
             case .gemini31FlashLite: return String(localized: "Geração anterior, econômico")
             case .gemini36Flash: return String(localized: "Equilíbrio de velocidade e qualidade")
@@ -1014,10 +1045,12 @@ nonisolated struct AppSettings: Codable, Equatable {
         }
 
         /// A camada compatível do Google traduz `reasoning_effort` para `thinking_level`/
-        /// `thinking_budget`. Só o 2.5 Flash desliga o raciocínio — o 2.5 Pro e a família 3 não.
+        /// `thinking_budget`. Só o 2.5 Flash desliga o raciocínio (`none`); Neon/Hydrogen chegam
+        /// a `xhigh`; Carbon, Argon e a família 3 aceitam `low`..`high`.
         var supportedReasoningEfforts: [ReasoningEffort] {
             switch self {
             case .gemini25Flash: return [.none, .low, .medium, .high]
+            case .gemini4Neon, .gemini4Hydrogen: return [.low, .medium, .high, .xhigh]
             default: return [.low, .medium, .high]
             }
         }
@@ -1028,6 +1061,7 @@ nonisolated struct AppSettings: Codable, Equatable {
     /// `grok-4.3` e cobrados no preço dele — por isso saíram da lista em vez de continuarem
     /// como "econômicos".
     enum XAIModel: String, CaseIterable, Codable {
+        case grok47 = "grok-4.7"
         case grok46 = "grok-4.6"
         case grok420NonReasoning = "grok-4.20-0309-non-reasoning"
         case grok45 = "grok-4.5"
@@ -1037,6 +1071,7 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var displayName: String {
             switch self {
+            case .grok47: return "Grok 4.7"
             case .grok46: return "Grok 4.6"
             case .grok420NonReasoning: return "Grok 4.20 Non-Reasoning"
             case .grok45: return "Grok 4.5"
@@ -1050,8 +1085,9 @@ nonisolated struct AppSettings: Codable, Equatable {
 
         var description: String {
             switch self {
+            case .grok47: return String(localized: "Mais recente e mais capaz")
+            case .grok46: return String(localized: "Mais capaz em tarefas longas")
             case .grok420NonReasoning: return String(localized: "Sem raciocínio, menor latência")
-            case .grok46: return String(localized: "Mais recente e mais capaz")
             case .grok45: return String(localized: "Mais capaz em tarefas longas")
             case .grok43: return String(localized: "Contexto de 1M, forte em ferramentas")
             case .grok420Reasoning: return String(localized: "Com raciocínio, mais preciso")
@@ -1059,12 +1095,12 @@ nonisolated struct AppSettings: Codable, Equatable {
             }
         }
 
-        /// No 4.20 o raciocínio está no próprio slug (não há parâmetro), e o 4.5 não desliga —
-        /// o mínimo dele é `low`. Para o Build 0.1 a xAI não documenta o campo, então não mandamos.
+        /// No 4.20 o raciocínio está no próprio slug (não há parâmetro), e 4.5/4.6/4.7 não
+        /// desligam — o mínimo deles é `low`. Para o Build 0.1 a xAI não documenta o campo.
         var supportedReasoningEfforts: [ReasoningEffort] {
             switch self {
-            case .grok43: return [.none, .low, .medium, .high]
-            case .grok46: return [.low, .medium, .high, .xhigh]
+            case .grok43: return [.none, .low, .medium, .high, .xhigh]
+            case .grok47, .grok46: return [.low, .medium, .high, .xhigh]
             case .grok45: return [.low, .medium, .high]
             case .grok420NonReasoning, .grok420Reasoning, .grokBuild01: return []
             }

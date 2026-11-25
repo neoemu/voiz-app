@@ -22,7 +22,7 @@ class TranslationService: ObservableObject {
     private var apiKey: String
     private var model: String
 
-    init(provider: AppSettings.TranslationProvider = .openai, apiKey: String = "", model: String = "gpt-5.6-luna", baseURL: String? = nil, reasoningEffort: String? = nil, session: URLSession? = nil) {
+    init(provider: AppSettings.TranslationProvider = .openai, apiKey: String = "", model: String = "gpt-6-luna", baseURL: String? = nil, reasoningEffort: String? = nil, session: URLSession? = nil) {
         self.provider = provider
         self.apiKey = apiKey
         self.model = model
