@@ -746,8 +746,19 @@ final class MeetingViewModel: ObservableObject {
                 guard let self else { return }
                 let settings = self.settingsStore.load()
                 self.appDetectionService.configure(enabled: settings.meetingDetectionEnabled)
+                let wasNotchEnabled = self.notchOverlayEnabled
+                let wasIndicatorEnabled = self.meetingIndicatorEnabled
                 self.notchOverlayEnabled = settings.notchOverlayEnabled
+                self.meetingIndicatorEnabled = settings.showRecordingHUD
                 NotchOverlay.shared.isEnabled = settings.notchOverlayEnabled
+                if (wasNotchEnabled != settings.notchOverlayEnabled || wasIndicatorEnabled != settings.showRecordingHUD),
+                   self.state == .listening,
+                   let active = self.activeSession {
+                    self.syncActiveRecordingIndicators(
+                        for: active,
+                        livePreviewAvailable: active.meetingMode == .granola || self.livePreviewEnabled
+                    )
+                }
                 self.refreshCalendarSuggestion()
             }
             .store(in: &cancellables)
@@ -999,31 +1010,22 @@ final class MeetingViewModel: ObservableObject {
             statusMessage = result.systemAudioWarning == nil
                 ? String(localized: "Gravando microfone e áudio do sistema") : String(localized: "Gravando só o microfone")
 
-            if meetingIndicatorEnabled {
-                MeetingRecordingIndicator.shared.show(
-                    isPaused: false,
-                    viewModel: self,
-                    onTogglePause: { [weak self] in self?.toggleMeetingPause() },
-                    onStop: { [weak self] in self?.toggleRecording() }
-                )
-            } else {
-                MeetingRecordingIndicator.shared.hide()
-            }
             NotchOverlay.shared.hideCalendarCountdown()
-            if notchOverlayEnabled {
-                NotchOverlay.shared.showRecording(
-                    onTogglePause: { [weak self] in self?.toggleMeetingPause() },
-                    onStop: { [weak self] in self?.toggleRecording() }
+            syncActiveRecordingIndicators(
+                for: session,
+                livePreviewAvailable: currentSettings.meetingMode == .granola || livePreviewEnabled
+            )
+            if notchOverlayEnabled, result.systemAudioWarning != nil {
+                let sessionID = session.id
+                NotchOverlay.shared.showToast(
+                    message: String(localized: "Sem áudio do sistema"),
+                    detail: String(localized: "Gravando somente o microfone"),
+                    symbol: "exclamationmark.triangle.fill",
+                    tone: .warning,
+                    actionLabel: String(localized: "Abrir"),
+                    duration: 6,
+                    onTap: { [weak self] in self?.openMeetingsWindow(selecting: sessionID) }
                 )
-                if result.systemAudioWarning != nil {
-                    NotchOverlay.shared.showToast(
-                        message: String(localized: "Sem áudio do sistema — gravando só o microfone"),
-                        symbol: "exclamationmark.triangle.fill",
-                        duration: 6
-                    )
-                }
-            } else {
-                NotchOverlay.shared.hideRecording()
             }
             addDebugLog("Reunião iniciada: \(session.title)")
             addDebugLog("Transcript final seguirá o plano: \(planSnapshot.logSummary)")
@@ -1465,6 +1467,72 @@ final class MeetingViewModel: ObservableObject {
         selectedSession = session
     }
 
+    /// Garante um único indicador ativo durante a gravação: com o notch ligado, ele substitui
+    /// a barra flutuante lateral (mantendo acesso ao assistente/notas e à janela principal).
+    private func syncActiveRecordingIndicators(
+        for session: MeetingSession,
+        livePreviewAvailable: Bool
+    ) {
+        let sessionID = session.id
+        if notchOverlayEnabled {
+            MeetingRecordingIndicator.shared.hide()
+            NotchOverlay.shared.showRecording(
+                title: session.title,
+                initialElapsed: meetingDuration(for: session),
+                livePreviewAvailable: livePreviewAvailable,
+                systemAudioAvailable: session.systemAudioWarning == nil,
+                onTogglePause: { [weak self] in self?.toggleMeetingPause() },
+                onStop: { [weak self] in self?.toggleRecording() },
+                onOpenAssistant: { [weak self] in
+                    guard let self else { return }
+                    MeetingRecordingIndicator.shared.openAssistant(viewModel: self)
+                },
+                onOpenApp: { [weak self] in self?.openMeetingsWindow(selecting: sessionID) }
+            )
+            if meetingPaused {
+                NotchOverlay.shared.setPaused(true)
+            }
+        } else {
+            NotchOverlay.shared.hideRecording()
+            if meetingIndicatorEnabled {
+                MeetingRecordingIndicator.shared.show(
+                    isPaused: meetingPaused,
+                    viewModel: self,
+                    onTogglePause: { [weak self] in self?.toggleMeetingPause() },
+                    onStop: { [weak self] in self?.toggleRecording() }
+                )
+            } else {
+                MeetingRecordingIndicator.shared.hide()
+            }
+        }
+    }
+
+    /// Traz a janela principal do Voiz para frente na aba Reuniões (opcionalmente abrindo uma sessão).
+    func openMeetingsWindow(selecting sessionID: UUID? = nil) {
+        let targetSessionID: UUID?
+        if let sessionID, activeSession == nil, let session = sessionForEditing(id: sessionID) {
+            viewingFolderId = nil
+            selectedSession = session
+            targetSessionID = session.id
+        } else {
+            targetSessionID = nil
+        }
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        let targetWindow = NSApp.windows.first(where: { $0.level == .normal && $0.canBecomeKey })
+            ?? NSApp.windows.first(where: { $0.canBecomeKey })
+        if let window = targetWindow {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+            window.makeKeyAndOrderFront(nil)
+        }
+        NotificationCenter.default.post(
+            name: Notification.Name("VoizOpenMeetingsTab"),
+            object: targetSessionID
+        )
+    }
+
     func setNotesIncluded(_ included: Bool, sessionID: UUID) {
         VoizEditingGate.shared.submit { [self] in
             guard var session = sessionForEditing(id: sessionID) else { return }
@@ -1818,6 +1886,9 @@ final class MeetingViewModel: ObservableObject {
             var updated = sessionForEditing(id: session.id) ?? session
             updated.title = trimmed
             updateSession(updated)
+            if activeSession?.id == updated.id {
+                NotchOverlay.shared.updateRecordingTitle(trimmed)
+            }
         }
     }
 
@@ -1858,14 +1929,13 @@ final class MeetingViewModel: ObservableObject {
                   self.state == .listening,
                   !self.meetingPaused
             else { return }
-            if self.meetingIndicatorEnabled {
-                MeetingRecordingIndicator.shared.update(
+            if self.notchOverlayEnabled {
+                NotchOverlay.shared.updateLevels(
                     microphoneLevel: microphone,
                     systemAudioLevel: system
                 )
-            }
-            if self.notchOverlayEnabled {
-                NotchOverlay.shared.updateLevels(
+            } else if self.meetingIndicatorEnabled {
+                MeetingRecordingIndicator.shared.update(
                     microphoneLevel: microphone,
                     systemAudioLevel: system
                 )
@@ -2003,6 +2073,7 @@ final class MeetingViewModel: ObservableObject {
                 if !processed || self.postProcessingWaitingForCredentials { break }
             }
             self?.postProcessingTask = nil
+            NotchOverlay.shared.hideProcessing()
             // A successful settings retry may have notified while this worker was still
             // awaiting its failed read. Do not lose that wakeup or retry a failed vault in a loop.
             if !Task.isCancelled, let self, self.settingsStore.credentialsAreReady {
@@ -2031,6 +2102,14 @@ final class MeetingViewModel: ObservableObject {
         case .liveTranscriptThenSummary:
             // WYSIWYG: o preview ao vivo já é o transcript final. Sem eco pós-call.
             if let current = sessionForEditing(id: sessionId) {
+                if notchOverlayEnabled {
+                    NotchOverlay.shared.showProcessing(
+                        stage: .summarizing,
+                        meetingTitle: current.title,
+                        progress: nil,
+                        onOpenApp: { [weak self] in self?.openMeetingsWindow(selecting: sessionId) }
+                    )
+                }
                 guard await generateSummary(for: current) else { return false }
             }
             if var fresh = sessionForEditing(id: sessionId) {
@@ -2054,6 +2133,14 @@ final class MeetingViewModel: ObservableObject {
         // na troca de falante, e pergunta e resposta viravam um bloco só do
         // dominante.
         // 1. Diarização (Camada 1) — as trocas de falante viram cortes
+        if notchOverlayEnabled {
+            NotchOverlay.shared.showProcessing(
+                stage: .diarizing,
+                meetingTitle: session.title,
+                progress: nil,
+                onOpenApp: { [weak self] in self?.openMeetingsWindow(selecting: sessionId) }
+            )
+        }
         let diarizedSegments = await diarizeSystemAudio(for: sessionId)
         let speakerBoundaries = DiarizationBatchCuts.batchBoundaries(
             from: diarizedSegments
@@ -2063,6 +2150,14 @@ final class MeetingViewModel: ObservableObject {
         }
 
         // 2. Transcrição dos lotes de áudio (.caf), cortados na troca de falante
+        if notchOverlayEnabled {
+            NotchOverlay.shared.showProcessing(
+                stage: .transcribing,
+                meetingTitle: session.title,
+                progress: 0,
+                onOpenApp: { [weak self] in self?.openMeetingsWindow(selecting: sessionId) }
+            )
+        }
         let outcome = await transcribeRecordedAudio(
             sessionId: sessionId,
             speakerBoundaries: speakerBoundaries
@@ -2088,6 +2183,14 @@ final class MeetingViewModel: ObservableObject {
 
         // 6. Geração do resumo com IA
         if let session = sessionForEditing(id: sessionId) {
+            if notchOverlayEnabled {
+                NotchOverlay.shared.showProcessing(
+                    stage: .summarizing,
+                    meetingTitle: session.title,
+                    progress: nil,
+                    onOpenApp: { [weak self] in self?.openMeetingsWindow(selecting: sessionId) }
+                )
+            }
             guard await generateSummary(for: session) else { return false }
         }
 
@@ -2552,6 +2655,9 @@ final class MeetingViewModel: ObservableObject {
         let pendingSeconds = pending.reduce(0.0) { $0 + max(0, $1.endTime - $1.startTime) }
         let consumed = readers.values.reduce(0.0) { $0 + $1.consumedSeconds }
         postProcessingProgress = min(1, max(0, consumed - pendingSeconds) / totalSeconds)
+        if notchOverlayEnabled {
+            NotchOverlay.shared.updateProcessingProgress(postProcessingProgress)
+        }
     }
 
     private func refillNextBatch(
@@ -2820,7 +2926,18 @@ final class MeetingViewModel: ObservableObject {
             if let fresh = sessionForEditing(id: session.id) {
                 guard await generateChapters(for: fresh, settings: settings) else { return false }
             }
-            NotchOverlay.shared.showToast(message: String(localized: "Resumo pronto"))
+            NotchOverlay.shared.hideProcessing()
+            let sessionID = session.id
+            let finalTitle = sessionForEditing(id: sessionID)?.title ?? session.title
+            NotchOverlay.shared.showToast(
+                message: String(localized: "Resumo pronto"),
+                detail: finalTitle,
+                symbol: "checkmark.circle.fill",
+                tone: .success,
+                actionLabel: String(localized: "Abrir"),
+                duration: 5.5,
+                onTap: { [weak self] in self?.openMeetingsWindow(selecting: sessionID) }
+            )
         } catch {
             if Task.isCancelled || error is CancellationError { return false }
             if error is SettingsCredentialError {
@@ -2837,9 +2954,16 @@ final class MeetingViewModel: ObservableObject {
                     detail: error.localizedDescription
                 )
             )
+            NotchOverlay.shared.hideProcessing()
+            let sessionID = session.id
             NotchOverlay.shared.showToast(
                 message: String(localized: "Resumo indisponível"),
-                symbol: "exclamationmark.triangle.fill"
+                detail: session.title,
+                symbol: "exclamationmark.triangle.fill",
+                tone: .warning,
+                actionLabel: String(localized: "Abrir"),
+                duration: 5.0,
+                onTap: { [weak self] in self?.openMeetingsWindow(selecting: sessionID) }
             )
         }
         return true
