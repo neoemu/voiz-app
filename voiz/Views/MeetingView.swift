@@ -2059,14 +2059,6 @@ private struct MeetingAssistQuestionResultCard: View {
 
 // MARK: - Review
 
-private struct MeetingReviewPlayerFramePreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect?
-
-    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
-        value = nextValue() ?? value
-    }
-}
-
 /// Título do detalhe editável no lugar: clique no texto e digite. Enter ou perder o foco salva,
 /// Esc devolve o original. Só vira campo no clique — um `TextField` permanente pegaria o foco
 /// inicial da tela com o texto todo selecionado, e a primeira tecla renomearia a reunião.
@@ -2132,6 +2124,38 @@ struct MeetingEditableTitle: View {
     }
 }
 
+private enum MeetingReviewTab: String, CaseIterable, Identifiable {
+    case summary
+    case transcript
+    case notes
+    case participants
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .summary: "Resumo"
+        case .transcript: "Transcrição"
+        case .notes: "Notas"
+        case .participants: "Participantes"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .summary: "sparkles"
+        case .transcript: "text.bubble"
+        case .notes: "note.text"
+        case .participants: "person.2"
+        }
+    }
+}
+
+private struct MeetingTranscriptScrollRequest: Equatable {
+    let token = UUID()
+    let turnID: UUID
+}
+
 struct MeetingReviewView: View {
     @EnvironmentObject var viewModel: MeetingViewModel
     @EnvironmentObject private var companionOverlay: MeetingReviewCompanionPresentation
@@ -2139,155 +2163,52 @@ struct MeetingReviewView: View {
     let session: MeetingSession
     let onBack: () -> Void
     @StateObject private var audioPlayer = MeetingAudioPlayer()
-    @State private var isFullPlayerAboveViewport = false
-
-    private static let playerBarID = "meeting-review-player-bar"
-    private static let scrollSpaceName = "meeting-review-scroll"
+    @State private var selectedTab: MeetingReviewTab = .summary
+    @State private var pendingTranscriptScroll: MeetingTranscriptScrollRequest?
+    @State private var transcriptSearchQuery = ""
+    @State private var transcriptSpeakerFilter: String?
 
     var body: some View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ZStack(alignment: .bottom) {
                     HStack(spacing: 0) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 22) {
-                            VoizBackButton(title: "Reuniões", action: onBack)
-                                .padding(.top, 16)
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                                headerSection
+                                    .padding(.bottom, 14)
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                MeetingEditableTitle(title: session.title) { newTitle in
-                                    viewModel.renameSession(session, to: newTitle)
-                                }
-                                HStack(spacing: 8) {
-                                    Text("\(session.formattedDate) • \(session.sessionType.displayName) • \(session.turns.count) falas")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(VoizTheme.mutedText)
-                                    MeetingSummaryModelPill(session: session)
+                                Section {
+                                    tabContent
+                                        .padding(.top, 18)
+                                        .padding(.bottom, audioPlayer.isAvailable ? 92 : 40)
+                                } header: {
+                                    reviewTabBar
                                 }
                             }
-
-                            MeetingReviewActions(session: session)
-
-                            if viewModel.isReprocessingTranscript(session) {
-                                HStack(spacing: 10) {
-                                    MeetingProcessingProgress(session: session)
-                                    Text(viewModel.processingStatusMessage(for: session))
-                                        .font(.system(size: 13))
-                                        .foregroundColor(VoizTheme.mutedText)
-                                        .lineLimit(1)
-                                    Spacer()
-                                }
-                                .padding(12)
-                                .background(VoizTheme.surfaceBackground)
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
-                                .cornerRadius(10)
-                            } else if viewModel.needsTranscriptRecovery(session) {
-                                HStack(spacing: 10) {
-                                    Label("Processamento interrompido. O áudio está salvo.",
-                                          systemImage: "exclamationmark.triangle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.orange)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                                    Button(action: { viewModel.reprocessTranscript(for: session) }) {
-                                        Label("Retomar", systemImage: "arrow.clockwise")
-                                    }
-                                    .buttonStyle(GranolaPillButtonStyle(accented: true))
-                                    .disabled(viewModel.isProcessing(session))
-                                }
-                                .padding(12)
-                                .background(VoizTheme.surfaceBackground)
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
-                                .cornerRadius(10)
-                            }
-
-                            if let error = session.summaryError {
-                                Label(error, systemImage: "exclamationmark.triangle")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.orange)
-                            }
-
-                            if viewModel.isGeneratingSummary
-                                && viewModel.selectedSession?.id == session.id
-                                && !viewModel.isReprocessingTranscript(session) {
-                                HStack(spacing: 8) {
-                                    ProgressView().controlSize(.small)
-                                    Text("Gerando resumo…")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(VoizTheme.mutedText)
-                                }
-                            }
-
-                            if let summary = session.summary, summary.hasContent {
-                                MeetingSummaryView(session: session) { turn in
-                                    if audioPlayer.isAvailable { audioPlayer.playFrom(turn.startTime) }
-                                    withAnimation { proxy.scrollTo(turn.id, anchor: .center) }
-                                }
-                            } else if !(viewModel.isGeneratingSummary && viewModel.selectedSession?.id == session.id) {
-                                HomeDetailSection(title: "Resumo") {
-                                    Text("Sem resumo ainda.")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(VoizTheme.mutedText)
-                                }
-                            }
-
-                            if !session.speakers.isEmpty && !session.turns.isEmpty {
-                                MeetingParticipantsCard(session: session)
-                            }
-
-                            if !session.talkTimeStats.isEmpty {
-                                MeetingTalkTimeCard(session: session)
-                            }
-
-                            MeetingNotesCard(session: session)
-
-                            if audioPlayer.isAvailable {
-                                MeetingPlayerBar(player: audioPlayer)
-                                    .id(Self.playerBarID)
-                                    .background {
-                                        GeometryReader { geometry in
-                                            Color.clear.preference(
-                                                key: MeetingReviewPlayerFramePreferenceKey.self,
-                                                value: geometry.frame(in: .named(Self.scrollSpaceName))
-                                            )
-                                        }
-                                    }
-                            }
-
-                            if !session.turns.isEmpty {
-                                MeetingChaptersCard(session: session, player: audioPlayer)
-                            }
-
-                            MeetingReviewTranscript(session: session, player: audioPlayer)
-
-                            Spacer(minLength: 40)
+                            .frame(maxWidth: MeetingLayout.maxWidth)
+                            .padding(.horizontal, MeetingLayout.horizontalPadding)
+                            .frame(maxWidth: .infinity)
                         }
+
+                        if companionReservedWidth(for: viewport.size.width) > 0 {
+                            Color.clear
+                                .frame(width: companionReservedWidth(for: viewport.size.width))
+                        }
+                    }
+
+                    if audioPlayer.isAvailable {
+                        MeetingDockedPlayerBar(
+                            player: audioPlayer,
+                            showJumpToTranscript: selectedTab != .transcript,
+                            onJumpToTranscript: { jumpToCurrentPlayingTurn() }
+                        )
                         .frame(maxWidth: MeetingLayout.maxWidth)
                         .padding(.horizontal, MeetingLayout.horizontalPadding)
                         .frame(maxWidth: .infinity)
-                    }
-                    .coordinateSpace(name: Self.scrollSpaceName)
-                    .onPreferenceChange(MeetingReviewPlayerFramePreferenceKey.self) { frame in
-                        updatePlayerBarPosition(frame, viewportHeight: viewport.size.height)
-                    }
-
-                    if companionReservedWidth(for: viewport.size.width) > 0 {
-                        Color.clear
-                            .frame(width: companionReservedWidth(for: viewport.size.width))
-                    }
-                    }
-                    if audioPlayer.isAvailable && isFullPlayerAboveViewport {
-                        MeetingFloatingPlayer(player: audioPlayer) {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo(Self.playerBarID, anchor: .center)
-                            }
-                        }
-                        .frame(maxWidth: MeetingLayout.maxWidth, alignment: .trailing)
-                        .padding(.horizontal, MeetingLayout.horizontalPadding)
-                        .frame(maxWidth: .infinity)
                         .padding(.trailing, companionReservedWidth(for: viewport.size.width))
-                        .padding(.bottom, 16)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .padding(.bottom, 14)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(1)
                     }
                 }
@@ -2303,7 +2224,7 @@ struct MeetingReviewView: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.16), value: companionOverlay.tab)
-                .animation(.easeOut(duration: 0.16), value: isFullPlayerAboveViewport)
+                .animation(.easeOut(duration: 0.16), value: audioPlayer.isAvailable)
                 .onAppear {
                     companionOverlay.registerHost(session: session, player: audioPlayer, viewportWidth: viewport.size.width)
                 }
@@ -2312,21 +2233,287 @@ struct MeetingReviewView: View {
                 }
                 .onChange(of: session) { previous, current in
                     if previous.id != current.id {
+                        selectedTab = .summary
+                        pendingTranscriptScroll = nil
+                        transcriptSearchQuery = ""
+                        transcriptSpeakerFilter = nil
                         companionOverlay.registerHost(session: current, player: audioPlayer, viewportWidth: viewport.size.width)
                     } else {
                         syncCompanionOverlay(width: viewport.size.width)
                     }
                 }
+                .task(id: scrollTriggerIdentity) {
+                    guard selectedTab == .transcript, let request = pendingTranscriptScroll else { return }
+                    await Task.yield()
+                    guard !Task.isCancelled, pendingTranscriptScroll == request else { return }
+                    if let groupID = MeetingTranscriptGroup.groupID(containing: request.turnID, in: session.turns) {
+                        proxy.scrollTo(MeetingReviewTranscript.groupScrollID(for: groupID), anchor: .center)
+                        try? await Task.sleep(for: .milliseconds(24))
+                        guard !Task.isCancelled, pendingTranscriptScroll == request else { return }
+                    }
+                    withAnimation(.easeOut(duration: 0.22)) {
+                        proxy.scrollTo(request.turnID, anchor: .center)
+                    }
+                    pendingTranscriptScroll = nil
+                }
             }
         }
         .task(id: audioLoadIdentity) {
-            isFullPlayerAboveViewport = false
             await loadAudio()
         }
         .onChange(of: session.turns) { _, newTurns in
             audioPlayer.updateTurns(newTurns)
         }
         .onDisappear { companionOverlay.dismissIfMatching(session.id, player: audioPlayer) }
+    }
+
+    private var scrollTriggerIdentity: String {
+        "\(selectedTab.rawValue)|\(pendingTranscriptScroll?.token.uuidString ?? "")"
+    }
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VoizBackButton(title: "Reuniões", action: onBack)
+                .padding(.top, 16)
+
+            VStack(alignment: .leading, spacing: 6) {
+                MeetingEditableTitle(title: session.title) { newTitle in
+                    viewModel.renameSession(session, to: newTitle)
+                }
+                HStack(spacing: 8) {
+                    Text("\(session.formattedDate) • \(session.sessionType.displayName) • \(session.turns.count) falas")
+                        .font(.system(size: 13))
+                        .foregroundColor(VoizTheme.mutedText)
+                    MeetingSummaryModelPill(session: session)
+                }
+            }
+
+            MeetingReviewActions(session: session)
+
+            statusBanners
+        }
+    }
+
+    @ViewBuilder
+    private var statusBanners: some View {
+        if viewModel.isReprocessingTranscript(session) {
+            HStack(spacing: 10) {
+                MeetingProcessingProgress(session: session)
+                Text(viewModel.processingStatusMessage(for: session))
+                    .font(.system(size: 13))
+                    .foregroundColor(VoizTheme.mutedText)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(12)
+            .background(VoizTheme.surfaceBackground)
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
+            .cornerRadius(10)
+        } else if viewModel.needsTranscriptRecovery(session) {
+            HStack(spacing: 10) {
+                Label("Processamento interrompido. O áudio está salvo.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button(action: { viewModel.reprocessTranscript(for: session) }) {
+                    Label("Retomar", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(GranolaPillButtonStyle(accented: true))
+                .disabled(viewModel.isProcessing(session))
+            }
+            .padding(12)
+            .background(VoizTheme.surfaceBackground)
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
+            .cornerRadius(10)
+        }
+
+        if let error = session.summaryError {
+            Label(error, systemImage: "exclamationmark.triangle")
+                .font(.system(size: 12))
+                .foregroundColor(.orange)
+        }
+
+        if viewModel.isGeneratingSummary
+            && viewModel.selectedSession?.id == session.id
+            && !viewModel.isReprocessingTranscript(session) {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Gerando resumo…")
+                    .font(.system(size: 13))
+                    .foregroundColor(VoizTheme.mutedText)
+            }
+        }
+    }
+
+    private var reviewTabBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                ForEach(MeetingReviewTab.allCases) { tab in
+                    reviewTabButton(tab)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 4)
+
+            Rectangle()
+                .fill(VoizTheme.border)
+                .frame(height: 1)
+        }
+        .background(VoizTheme.appBackground)
+    }
+
+    private func reviewTabButton(_ tab: MeetingReviewTab) -> some View {
+        let isSelected = selectedTab == tab
+        let badgeCount = tabBadgeCount(for: tab)
+        let hasDot = tab == .notes && !session.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        return Button {
+            withAnimation(.easeOut(duration: 0.14)) {
+                selectedTab = tab
+            }
+        } label: {
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: tab.symbol)
+                        .font(.system(size: 11.5, weight: .medium))
+                    Text(tab.title)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    if let badgeCount, badgeCount > 0 {
+                        Text("\(badgeCount)")
+                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(isSelected ? VoizTheme.accentBright : VoizTheme.mutedText)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1.5)
+                            .background(
+                                isSelected ? VoizTheme.accent.opacity(0.16) : VoizTheme.elevatedBackground,
+                                in: Capsule()
+                            )
+                    } else if hasDot {
+                        Circle()
+                            .fill(VoizTheme.accent)
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                .foregroundColor(isSelected ? VoizTheme.primaryText : VoizTheme.mutedText)
+                .padding(.horizontal, 10)
+                .padding(.top, 6)
+
+                Rectangle()
+                    .fill(isSelected ? VoizTheme.accent : Color.clear)
+                    .frame(height: 2)
+                    .clipShape(Capsule())
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func tabBadgeCount(for tab: MeetingReviewTab) -> Int? {
+        switch tab {
+        case .summary:
+            return nil
+        case .transcript:
+            return session.turns.isEmpty ? nil : session.turns.count
+        case .notes:
+            return nil
+        case .participants:
+            let count = session.participantsListSpeakers.count
+            return count > 0 ? count : nil
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .summary:
+            VStack(alignment: .leading, spacing: 18) {
+                if let summary = session.summary, summary.hasContent {
+                    MeetingSummaryView(
+                        session: session,
+                        onPlayTurn: { turn in
+                            if audioPlayer.isAvailable { audioPlayer.playFrom(turn.startTime) }
+                        },
+                        onRevealTurn: { turn in
+                            revealTurnInTranscript(turn)
+                        }
+                    )
+                } else if !(viewModel.isGeneratingSummary && viewModel.selectedSession?.id == session.id) {
+                    HomeDetailSection(title: "Resumo") {
+                        Text("Sem resumo ainda.")
+                            .font(.system(size: 13))
+                            .foregroundColor(VoizTheme.mutedText)
+                    }
+                }
+            }
+
+        case .transcript:
+            MeetingReviewTranscript(
+                session: session,
+                player: audioPlayer,
+                searchQuery: $transcriptSearchQuery,
+                selectedSpeakerKey: $transcriptSpeakerFilter,
+                onJumpToTime: { time in
+                    if audioPlayer.isAvailable { audioPlayer.playFrom(time) }
+                    if let target = turnNearest(to: time) {
+                        transcriptSearchQuery = ""
+                        transcriptSpeakerFilter = nil
+                        pendingTranscriptScroll = MeetingTranscriptScrollRequest(turnID: target.id)
+                    }
+                }
+            )
+
+        case .notes:
+            MeetingNotesCard(session: session)
+
+        case .participants:
+            VStack(alignment: .leading, spacing: 18) {
+                if !session.speakers.isEmpty && !session.turns.isEmpty {
+                    MeetingParticipantsCard(session: session)
+                } else {
+                    HomeDetailSection(title: "Participantes") {
+                        Text("Nenhuma fala registrada.")
+                            .font(.system(size: 13))
+                            .foregroundColor(VoizTheme.mutedText)
+                    }
+                }
+
+                if !session.talkTimeStats.isEmpty {
+                    MeetingTalkTimeCard(session: session)
+                }
+            }
+        }
+    }
+
+    private func revealTurnInTranscript(_ turn: MeetingTurn) {
+        if audioPlayer.isAvailable { audioPlayer.playFrom(turn.startTime) }
+        transcriptSearchQuery = ""
+        transcriptSpeakerFilter = nil
+        pendingTranscriptScroll = MeetingTranscriptScrollRequest(turnID: turn.id)
+        if selectedTab != .transcript {
+            withAnimation(.easeOut(duration: 0.14)) {
+                selectedTab = .transcript
+            }
+        }
+    }
+
+    private func jumpToCurrentPlayingTurn() {
+        let targetID = audioPlayer.turnPlaybackState.currentTurnID
+            ?? turnNearest(to: audioPlayer.playbackState.currentTime)?.id
+        transcriptSearchQuery = ""
+        transcriptSpeakerFilter = nil
+        if let targetID {
+            pendingTranscriptScroll = MeetingTranscriptScrollRequest(turnID: targetID)
+        }
+        withAnimation(.easeOut(duration: 0.14)) {
+            selectedTab = .transcript
+        }
+    }
+
+    private func turnNearest(to time: TimeInterval) -> MeetingTurn? {
+        MeetingTranscriptGroup.turn(at: time, in: session.turns)
     }
 
     private func showsCompanionOverlay(width: CGFloat) -> Bool {
@@ -2349,19 +2536,6 @@ struct MeetingReviewView: View {
         session.id.uuidString + "|" + (session.cleanMicFile ?? "raw")
     }
 
-    private func updatePlayerBarPosition(_ frame: CGRect?, viewportHeight: CGFloat) {
-        let nextValue: Bool
-        if audioPlayer.isAvailable, let frame, viewportHeight > 0 {
-            // O mini-player só aparece depois que a barra passou pelo topo. Se ela ainda está
-            // abaixo do viewport (usuário no início da página), não há player prematuro.
-            nextValue = frame.maxY <= 0
-        } else {
-            nextValue = false
-        }
-        guard nextValue != isFullPlayerAboveViewport else { return }
-        isFullPlayerAboveViewport = nextValue
-    }
-
     private func loadAudio() async {
         let directory = viewModel.store.sessionDirectoryURL(for: session.id)
         // Usa a faixa de mic sem eco quando existe (cai no microphone.caf bruto se faltar).
@@ -2381,7 +2555,6 @@ struct MeetingReviewView: View {
             turns: session.turns
         )
     }
-
 }
 
 private enum NotionExportAlert: Equatable {
@@ -3435,23 +3608,29 @@ struct MeetingPlayerBar: View {
     }
 }
 
-struct MeetingFloatingPlayer: View {
+struct MeetingDockedPlayerBar: View {
     let player: MeetingAudioPlayer
-    let onReturnToFullPlayer: () -> Void
+    var showJumpToTranscript: Bool = false
+    var onJumpToTranscript: (() -> Void)? = nil
     @ObservedObject private var playback: MeetingPlayerPlaybackState
 
-    init(player: MeetingAudioPlayer, onReturnToFullPlayer: @escaping () -> Void) {
+    init(
+        player: MeetingAudioPlayer,
+        showJumpToTranscript: Bool = false,
+        onJumpToTranscript: (() -> Void)? = nil
+    ) {
         self.player = player
-        self.onReturnToFullPlayer = onReturnToFullPlayer
+        self.showJumpToTranscript = showJumpToTranscript
+        self.onJumpToTranscript = onJumpToTranscript
         _playback = ObservedObject(wrappedValue: player.playbackState)
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Button(action: { player.togglePlayPause() }) {
                 Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 26, height: 26)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
                     .background(VoizTheme.accent.opacity(0.95))
                     .foregroundColor(.white)
                     .clipShape(Circle())
@@ -3459,101 +3638,136 @@ struct MeetingFloatingPlayer: View {
             .buttonStyle(.plain)
             .accessibilityLabel(playback.isPlaying ? Text("Pausar") : Text("Reproduzir"))
 
-            Button(action: onReturnToFullPlayer) {
-                HStack(spacing: 7) {
-                    Text(meetingDurationLabel(playback.currentTime))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    Text("/")
-                        .foregroundColor(VoizTheme.mutedText.opacity(0.7))
-                    Text(meetingDurationLabel(playback.duration))
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(VoizTheme.mutedText)
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(VoizTheme.accent)
-                }
+            Text(meetingDurationLabel(playback.currentTime))
+                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                 .foregroundColor(VoizTheme.primaryText)
-                .contentShape(Rectangle())
+                .frame(minWidth: 38, alignment: .leading)
+
+            Slider(
+                value: Binding(
+                    get: { playback.currentTime },
+                    set: { player.seek(to: $0) }
+                ),
+                in: 0...max(playback.duration, 0.1)
+            )
+            .tint(VoizTheme.accent)
+
+            Text(meetingDurationLabel(playback.duration))
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundColor(VoizTheme.mutedText)
+                .frame(minWidth: 38, alignment: .trailing)
+
+            if showJumpToTranscript, let onJumpToTranscript, playback.isPlaying || playback.currentTime > 0 {
+                Button(action: onJumpToTranscript) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(VoizTheme.accent)
+                        .frame(width: 26, height: 26)
+                        .background(VoizTheme.accent.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Ir para a fala atual")
+                .accessibilityLabel(Text("Ir para a fala atual"))
             }
-            .buttonStyle(.plain)
-            .help("Voltar ao player completo")
-            .accessibilityLabel("Voltar ao player completo")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-        .overlay(Capsule().stroke(VoizTheme.border))
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.22), radius: 10, y: 4)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(VoizTheme.borderStrong, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.24), radius: 14, y: 6)
     }
 }
 
-/// Capítulos gerados automaticamente no fluxo do resumo; clicar navega no player.
-struct MeetingChaptersCard: View {
+/// Capítulos compactos exibidos no topo da aba Transcrição; clicar navega no player e na fala.
+private struct MeetingTranscriptChaptersStrip: View {
     @EnvironmentObject var viewModel: MeetingViewModel
     let session: MeetingSession
-    @ObservedObject var player: MeetingAudioPlayer
+    let onSelectTime: (TimeInterval) -> Void
+    @State private var isExpanded = true
 
     private var chapters: [MeetingChapter] { session.chapters ?? [] }
     private var isGenerating: Bool { viewModel.generatingSummarySessionIDs.contains(session.id) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("Capítulos", systemImage: "list.bullet.indent")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(VoizTheme.primaryText)
-                Spacer()
-            }
-
-            if isGenerating {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(viewModel.generatingChapterSessionIDs.contains(session.id) ? String(localized: "Gerando capítulos…") : String(localized: "Gerando resumo…"))
-                        .font(.system(size: 12))
-                        .foregroundColor(VoizTheme.mutedText)
+        if isGenerating || !chapters.isEmpty || session.chaptersError != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    withAnimation(.easeOut(duration: 0.14)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "list.bullet.indent")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(VoizTheme.mutedText)
+                        Text("Capítulos")
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundColor(VoizTheme.mutedText)
+                            .textCase(.uppercase)
+                        if !chapters.isEmpty {
+                            Text("\(chapters.count)")
+                                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                                .foregroundColor(VoizTheme.mutedText)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(VoizTheme.mutedText)
+                    }
+                    .contentShape(Rectangle())
                 }
-            } else if let error = session.chaptersError {
-                Text(error)
-                    .font(.system(size: 12))
-                    .foregroundColor(VoizTheme.mutedText)
-            }
-            if !isGenerating && chapters.isEmpty && session.chaptersError == nil {
-                Text("Gerados junto com o resumo.")
-                    .font(.system(size: 12))
-                    .foregroundColor(VoizTheme.mutedText)
-            } else if !chapters.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(chapters) { chapter in
-                        Button(action: { player.playFrom(chapter.startTime) }) {
-                            HStack(spacing: 10) {
-                                Text(chapterTimeLabel(chapter.startTime))
-                                    .font(.system(size: 12, design: .monospaced))
-                                    .foregroundColor(VoizTheme.accent)
-                                    .frame(width: 46, alignment: .leading)
-                                Text(chapter.title)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(VoizTheme.primaryText)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                if player.isAvailable {
-                                    Image(systemName: "play.circle")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(VoizTheme.mutedText)
+                .buttonStyle(.plain)
+                .help(isExpanded ? String(localized: "Ocultar capítulos") : String(localized: "Mostrar capítulos"))
+
+                if isExpanded {
+                    if isGenerating {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text(viewModel.generatingChapterSessionIDs.contains(session.id)
+                                 ? String(localized: "Gerando capítulos…")
+                                 : String(localized: "Gerando resumo…"))
+                                .font(.system(size: 12))
+                                .foregroundColor(VoizTheme.mutedText)
+                        }
+                    } else if let error = session.chaptersError {
+                        Text(error)
+                            .font(.system(size: 12))
+                            .foregroundColor(VoizTheme.mutedText)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(chapters) { chapter in
+                                    Button {
+                                        onSelectTime(chapter.startTime)
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Text(chapterTimeLabel(chapter.startTime))
+                                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                                .foregroundColor(VoizTheme.accent)
+                                            Text(chapter.title)
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundColor(VoizTheme.primaryText)
+                                                .lineLimit(1)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(VoizTheme.elevatedBackground, in: Capsule())
+                                        .overlay(Capsule().stroke(VoizTheme.border, lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.vertical, 7)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
-                        .disabled(!player.isAvailable)
                     }
                 }
             }
+            .padding(12)
+            .background(VoizTheme.surfaceBackground, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(VoizTheme.border))
         }
-        .padding(14)
-        .background(VoizTheme.surfaceBackground)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VoizTheme.border))
-        .cornerRadius(12)
     }
 
     private func chapterTimeLabel(_ time: TimeInterval) -> String {
@@ -3563,187 +3777,843 @@ struct MeetingChaptersCard: View {
 }
 
 struct MeetingReviewTranscript: View {
+    static func groupScrollID(for groupID: UUID) -> String {
+        "transcript-group:\(groupID.uuidString)"
+    }
+
     let session: MeetingSession
     let player: MeetingAudioPlayer
+    @Binding var searchQuery: String
+    @Binding var selectedSpeakerKey: String?
+    var onJumpToTime: ((TimeInterval) -> Void)? = nil
     @ObservedObject private var turnPlayback: MeetingTurnPlaybackState
 
-    init(session: MeetingSession, player: MeetingAudioPlayer) {
+    init(
+        session: MeetingSession,
+        player: MeetingAudioPlayer,
+        searchQuery: Binding<String>,
+        selectedSpeakerKey: Binding<String?>,
+        onJumpToTime: ((TimeInterval) -> Void)? = nil
+    ) {
         self.session = session
         self.player = player
+        _searchQuery = searchQuery
+        _selectedSpeakerKey = selectedSpeakerKey
+        self.onJumpToTime = onJumpToTime
         _turnPlayback = ObservedObject(wrappedValue: player.turnPlaybackState)
+    }
+
+    private struct SpeakerOption: Identifiable {
+        let id: String
+        let name: String
+        let source: MeetingCaptureSource
+        let speakerId: String?
+        let count: Int
+    }
+
+    private var speakerOptions: [SpeakerOption] {
+        var order: [String] = []
+        var counts: [String: Int] = [:]
+        var meta: [String: (name: String, source: MeetingCaptureSource, speakerId: String?)] = [:]
+        for turn in session.turns {
+            let key = MeetingTranscriptGroup.speakerKey(for: turn)
+            if counts[key] == nil {
+                order.append(key)
+                meta[key] = (turn.speakerName, turn.source, turn.speakerId)
+            }
+            counts[key, default: 0] += 1
+        }
+        return order.compactMap { key in
+            guard let info = meta[key], let count = counts[key] else { return nil }
+            return SpeakerOption(id: key, name: info.name, source: info.source, speakerId: info.speakerId, count: count)
+        }
+    }
+
+    private var filteredTurns: [MeetingTurn] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return session.turns.filter { turn in
+            if let selectedSpeakerKey, MeetingTranscriptGroup.speakerKey(for: turn) != selectedSpeakerKey {
+                return false
+            }
+            if !query.isEmpty {
+                return turn.text.localizedCaseInsensitiveContains(query)
+                    || turn.speakerName.localizedCaseInsensitiveContains(query)
+            }
+            return true
+        }
+    }
+
+    private var groupedTurns: [MeetingTranscriptGroup] {
+        MeetingTranscriptGroup.group(filteredTurns)
     }
 
     var body: some View {
         let currentID = player.isAvailable ? turnPlayback.currentTurnID : nil
-        HomeDetailSection(title: "Transcrição") {
-            if session.turns.isEmpty {
-                Text("Nenhuma fala registrada.")
-                    .font(.system(size: 13))
-                    .foregroundColor(VoizTheme.mutedText)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(session.turns) { turn in
-                        MeetingTurnBubble(
-                            turn: turn,
-                            isCurrent: turn.id == currentID,
-                            onSeek: player.isAvailable ? { player.playFrom(turn.startTime) } : nil
-                        )
-                        .equatable()
-                        .id(turn.id)
+        let options = speakerOptions
+        let groups = groupedTurns
+
+        VStack(alignment: .leading, spacing: 14) {
+            if !session.turns.isEmpty, let onJumpToTime {
+                MeetingTranscriptChaptersStrip(session: session, onSelectTime: onJumpToTime)
+            }
+
+            if !session.turns.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12))
+                            .foregroundColor(VoizTheme.mutedText)
+                        TextField("Buscar na transcrição…", text: $searchQuery)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .foregroundColor(VoizTheme.primaryText)
+                        if !searchQuery.isEmpty {
+                            Button {
+                                searchQuery = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(VoizTheme.mutedText)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(VoizTheme.surfaceBackground, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(VoizTheme.border))
+
+                    if options.count >= 2 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                filterChip(
+                                    title: String(localized: "Todos"),
+                                    count: session.turns.count,
+                                    dotColor: nil,
+                                    selected: selectedSpeakerKey == nil
+                                ) {
+                                    selectedSpeakerKey = nil
+                                }
+                                ForEach(options) { option in
+                                    filterChip(
+                                        title: option.name,
+                                        count: option.count,
+                                        dotColor: meetingSpeakerColor(source: option.source, speakerId: option.speakerId),
+                                        selected: selectedSpeakerKey == option.id
+                                    ) {
+                                        selectedSpeakerKey = selectedSpeakerKey == option.id ? nil : option.id
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
+
+            if session.turns.isEmpty {
+                HomeDetailSection(title: "Transcrição") {
+                    Text("Nenhuma fala registrada.")
+                        .font(.system(size: 13))
+                        .foregroundColor(VoizTheme.mutedText)
+                }
+            } else if groups.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Nenhuma fala encontrada.")
+                        .font(.system(size: 13))
+                        .foregroundColor(VoizTheme.mutedText)
+                    Button("Limpar filtro") {
+                        searchQuery = ""
+                        selectedSpeakerKey = nil
+                    }
+                    .buttonStyle(GranolaPillButtonStyle())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(VoizTheme.surfaceBackground, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(VoizTheme.border))
+            } else {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(groups) { group in
+                        MeetingTranscriptGroupBubble(
+                            group: group,
+                            currentTurnID: currentID,
+                            onSeek: player.isAvailable ? { turn in player.playFrom(turn.startTime) } : nil
+                        )
+                        .id(Self.groupScrollID(for: group.id))
+                    }
+                }
+                .padding(16)
+                .background(VoizTheme.surfaceBackground, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(VoizTheme.border))
+            }
         }
+    }
+
+    private func filterChip(
+        title: String,
+        count: Int,
+        dotColor: Color?,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let dotColor {
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: 7, height: 7)
+                }
+                Text(title)
+                    .font(.system(size: 12, weight: selected ? .semibold : .medium))
+                    .foregroundColor(selected ? VoizTheme.primaryText : VoizTheme.mutedText)
+                    .lineLimit(1)
+                Text("\(count)")
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .foregroundColor(selected ? VoizTheme.accentBright : VoizTheme.mutedText.opacity(0.85))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                selected ? VoizTheme.accent.opacity(0.16) : VoizTheme.surfaceBackground,
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().stroke(selected ? VoizTheme.accent.opacity(0.45) : VoizTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
-struct MeetingTurnBubble: View, Equatable {
-    let turn: MeetingTurn
-    var isCurrent: Bool = false
-    var onSeek: (() -> Void)? = nil
-    /// Quando true, revela o texto com o mesmo efeito de streaming da tela de tradução.
-    /// Usado só no último turno ao vivo (o que está crescendo).
-    var animated: Bool = false
-
-    static func == (lhs: MeetingTurnBubble, rhs: MeetingTurnBubble) -> Bool {
-        lhs.turn == rhs.turn
-            && lhs.isCurrent == rhs.isCurrent
-            && lhs.animated == rhs.animated
-            && (lhs.onSeek == nil) == (rhs.onSeek == nil)
-    }
+private struct MeetingTranscriptGroupBubble: View {
+    let group: MeetingTranscriptGroup
+    let currentTurnID: UUID?
+    let onSeek: ((MeetingTurn) -> Void)?
 
     private var speakerColor: Color {
-        meetingSpeakerColor(source: turn.source, speakerId: turn.speakerId)
+        meetingSpeakerColor(source: group.source, speakerId: group.speakerId)
     }
 
-    /// Estilo Granola "Eu vs Outros": o bucket é a **fonte** do turn (mic = Você, sistema = Outros).
-    /// Você vai à esquerda com o tom da própria cor; Outros à direita, neutro/mais claro — assim
-    /// todos os participantes ficam visualmente uniformes (a identidade fina segue no rótulo/cor do nome).
-    private var isMe: Bool { turn.source == .microphone }
+    private var isMe: Bool { group.source == .microphone }
+
+    private var containsCurrent: Bool {
+        guard let currentTurnID else { return false }
+        return group.turns.contains(where: { $0.id == currentTurnID })
+    }
 
     private var bubbleFill: Color {
-        if isMe { return speakerColor.opacity(isCurrent ? 0.30 : 0.16) }
-        return isCurrent ? VoizTheme.selectedBackground : VoizTheme.assistantBubbleBackground
+        if isMe { return speakerColor.opacity(containsCurrent ? 0.24 : 0.14) }
+        return containsCurrent ? VoizTheme.selectedBackground : VoizTheme.assistantBubbleBackground
     }
 
     var body: some View {
         HStack(spacing: 0) {
-            if !isMe { Spacer(minLength: 56) }
+            if !isMe { Spacer(minLength: 48) }
             bubble
-            if isMe { Spacer(minLength: 56) }
+            if isMe { Spacer(minLength: 48) }
         }
         .frame(maxWidth: .infinity)
     }
 
     private var bubble: some View {
-        VStack(alignment: isMe ? .leading : .trailing, spacing: 3) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(turn.speakerName)
-                    .font(.system(size: 11, weight: .semibold))
+                Circle()
+                    .fill(speakerColor)
+                    .frame(width: 7, height: 7)
+                Text(group.speakerName)
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundColor(speakerColor)
-                timeView
+                if let first = group.turns.first {
+                    timeButton(for: first)
+                }
+                Spacer(minLength: 0)
             }
-            StreamingText(
-                text: turn.text,
-                font: .system(size: 14),
-                color: VoizTheme.primaryText,
-                lineSpacing: 3,
-                animated: animated
-            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(group.turns.enumerated()), id: \.element.id) { offset, turn in
+                    let isCurrent = turn.id == currentTurnID
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if offset > 0 {
+                            timeButton(for: turn, subtle: true)
+                        }
+                        Text(turn.text)
+                            .font(.system(size: 13.5))
+                            .foregroundColor(VoizTheme.primaryText)
+                            .lineSpacing(3)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, isCurrent ? 8 : 0)
+                    .padding(.vertical, isCurrent ? 5 : 0)
+                    .background(
+                        isCurrent ? speakerColor.opacity(0.16) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 7)
+                    )
+                    .id(turn.id)
+                }
+            }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
         .background(bubbleFill)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(isCurrent ? speakerColor.opacity(0.7) : VoizTheme.border, lineWidth: isCurrent ? 1.5 : 1)
+                .stroke(containsCurrent ? speakerColor.opacity(0.65) : VoizTheme.border, lineWidth: containsCurrent ? 1.5 : 1)
         )
         .cornerRadius(12)
     }
 
     @ViewBuilder
-    private var timeView: some View {
+    private func timeButton(for turn: MeetingTurn, subtle: Bool = false) -> some View {
+        let label = timeLabel(turn.startTime)
         if let onSeek {
-            Button(action: onSeek) {
-                HStack(spacing: 3) {
-                    Image(systemName: "play.fill").font(.system(size: 8))
-                    Text(timeLabel).font(.caption2)
+            Button { onSeek(turn) } label: {
+                HStack(spacing: 2.5) {
+                    if !subtle {
+                        Image(systemName: "play.fill").font(.system(size: 7.5))
+                    }
+                    Text(label)
+                        .font(.system(size: subtle ? 10.5 : 11, design: .monospaced))
                 }
-                .foregroundColor(.secondary)
+                .foregroundColor(subtle ? VoizTheme.mutedText.opacity(0.75) : VoizTheme.mutedText)
             }
             .buttonStyle(.plain)
             .help("Tocar a partir daqui")
             .accessibilityLabel(Text("Tocar a partir daqui"))
-            .accessibilityValue(Text(timeLabel))
+            .accessibilityValue(Text(label))
         } else {
-            Text(timeLabel)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            Text(label)
+                .font(.system(size: subtle ? 10.5 : 11, design: .monospaced))
+                .foregroundColor(VoizTheme.mutedText.opacity(subtle ? 0.75 : 1))
         }
     }
 
-    private var timeLabel: String {
-        let minutes = Int(turn.startTime) / 60
-        let seconds = Int(turn.startTime) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+    private func timeLabel(_ time: TimeInterval) -> String {
+        let total = max(0, Int(time))
+        return String(format: "%02d:%02d", total / 60, total % 60)
     }
 }
 
 // MARK: - Summary (seções dinâmicas)
 
-/// Renderiza o resumo a partir das seções dinâmicas do template. Parágrafos e tópicos são
-/// somente leitura; action items viram checkboxes acionáveis. Reusado na revisão e na Home.
+/// Renderiza o resumo com o parágrafo principal fixo no topo e as demais seções do template em
+/// sub-abas com contagem (além da opção "Tudo" com cards recolhíveis).
 struct MeetingSummaryView: View {
     let session: MeetingSession
+    var onPlayTurn: ((MeetingTurn) -> Void)? = nil
     var onRevealTurn: ((MeetingTurn) -> Void)? = nil
 
+    @State private var selectedSectionID: String?
+    @State private var collapsedSectionIDs: Set<String> = []
+
+    private var nonEmptySections: [MeetingSummarySection] {
+        session.summary?.sections.filter { !$0.isEmpty } ?? []
+    }
+
+    private var leadSection: MeetingSummarySection? {
+        nonEmptySections.first(where: { $0.kind == .paragraph })
+    }
+
+    private var detailSections: [MeetingSummarySection] {
+        guard let lead = leadSection else { return nonEmptySections }
+        return nonEmptySections.filter { $0.id != lead.id }
+    }
+
+    private var detailSectionIDs: [String] {
+        detailSections.map(\.id)
+    }
+
     var body: some View {
-        if let summary = session.summary {
-            ForEach(summary.sections) { section in
-                if !section.isEmpty {
-                    sectionView(section)
+        VStack(alignment: .leading, spacing: 16) {
+            if let lead = leadSection {
+                leadParagraphCard(lead)
+            }
+
+            if detailSections.count >= 2 {
+                sectionSelectorBar
+            }
+
+            if detailSections.count >= 2, let selectedSectionID,
+               let activeSection = detailSections.first(where: { $0.id == selectedSectionID }) {
+                sectionCard(activeSection, collapsible: false)
+            } else {
+                ForEach(detailSections) { section in
+                    sectionCard(section, collapsible: detailSections.count >= 2)
                 }
+            }
+        }
+        .onChange(of: session.id, initial: true) { _, _ in
+            collapsedSectionIDs = []
+            selectedSectionID = detailSections.count >= 2 ? detailSections.first?.id : nil
+        }
+        .onChange(of: detailSectionIDs) { _, ids in
+            if ids.count < 2 {
+                selectedSectionID = nil
+            } else if let current = selectedSectionID, !ids.contains(current) {
+                selectedSectionID = ids.first
+            }
+        }
+    }
+
+    private func leadParagraphCard(_ section: MeetingSummarySection) -> some View {
+        HomeDetailSection(title: LocalizedStringKey(section.title)) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(section.paragraph)
+                    .font(.system(size: 14.5))
+                    .foregroundColor(VoizTheme.primaryText)
+                    .textSelection(.enabled)
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                MeetingEvidenceLinks(
+                    session: session,
+                    section: section,
+                    itemIndex: 0,
+                    onPlayTurn: onPlayTurn,
+                    onRevealTurn: onRevealTurn
+                )
+            }
+        }
+    }
+
+    private var sectionSelectorBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(detailSections) { section in
+                    let isSelected = selectedSectionID == section.id
+                    sectionTabPill(
+                        title: section.title,
+                        badge: sectionBadge(for: section),
+                        selected: isSelected
+                    ) {
+                        withAnimation(.easeOut(duration: 0.14)) {
+                            selectedSectionID = section.id
+                        }
+                    }
+                }
+
+                sectionTabPill(
+                    title: String(localized: "Tudo"),
+                    badge: nil,
+                    selected: selectedSectionID == nil
+                ) {
+                    withAnimation(.easeOut(duration: 0.14)) {
+                        selectedSectionID = nil
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func sectionBadge(for section: MeetingSummarySection) -> String? {
+        switch section.kind {
+        case .paragraph:
+            return nil
+        case .bullets:
+            let count = section.displayItemCount
+            return count > 0 ? "\(count)" : nil
+        case .actionItems:
+            let valid = section.actionItems.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            guard !valid.isEmpty else { return nil }
+            let doneCount = valid.filter(\.done).count
+            return doneCount > 0 ? "\(doneCount)/\(valid.count)" : "\(valid.count)"
+        }
+    }
+
+    private func sectionTabPill(
+        title: String,
+        badge: String?,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 12.5, weight: selected ? .semibold : .medium))
+                    .foregroundColor(selected ? VoizTheme.primaryText : VoizTheme.mutedText)
+                    .lineLimit(1)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(selected ? VoizTheme.accentBright : VoizTheme.mutedText)
+                        .padding(.horizontal, 5.5)
+                        .padding(.vertical, 1.5)
+                        .background(
+                            selected ? VoizTheme.accent.opacity(0.20) : VoizTheme.elevatedBackground,
+                            in: Capsule()
+                        )
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(
+                selected ? VoizTheme.accent.opacity(0.14) : VoizTheme.surfaceBackground,
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().stroke(selected ? VoizTheme.accent.opacity(0.42) : VoizTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func sectionCard(_ section: MeetingSummarySection, collapsible: Bool) -> some View {
+        let isCollapsed = collapsible && collapsedSectionIDs.contains(section.id)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            if collapsible {
+                Button {
+                    withAnimation(.easeOut(duration: 0.14)) {
+                        if collapsedSectionIDs.contains(section.id) {
+                            collapsedSectionIDs.remove(section.id)
+                        } else {
+                            collapsedSectionIDs.insert(section.id)
+                        }
+                    }
+                } label: {
+                    sectionHeaderRow(section, collapsible: true, isCollapsed: isCollapsed)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                sectionHeaderRow(section, collapsible: false, isCollapsed: false)
+            }
+
+            if !isCollapsed {
+                sectionBody(section)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(VoizTheme.surfaceBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(VoizTheme.border)
+        )
+        .cornerRadius(12)
+    }
+
+    private func sectionHeaderRow(_ section: MeetingSummarySection, collapsible: Bool, isCollapsed: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(LocalizedStringKey(section.title))
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundColor(VoizTheme.mutedText)
+                .textCase(.uppercase)
+
+            if let badge = sectionBadge(for: section) {
+                Text(badge)
+                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(VoizTheme.mutedText)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1.5)
+                    .background(VoizTheme.elevatedBackground, in: Capsule())
+            }
+
+            Spacer(minLength: 0)
+
+            if collapsible {
+                Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundColor(VoizTheme.mutedText)
             }
         }
     }
 
     @ViewBuilder
-    private func sectionView(_ section: MeetingSummarySection) -> some View {
+    private func sectionBody(_ section: MeetingSummarySection) -> some View {
         switch section.kind {
         case .paragraph:
-            HomeDetailSection(title: LocalizedStringKey(section.title)) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(section.paragraph)
-                    .font(.system(size: 15))
+                    .font(.system(size: 14.5))
                     .foregroundColor(VoizTheme.primaryText)
                     .textSelection(.enabled)
                     .lineSpacing(4)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                MeetingEvidenceLinks(session: session, section: section, itemIndex: 0, onRevealTurn: onRevealTurn)
+                MeetingEvidenceLinks(
+                    session: session,
+                    section: section,
+                    itemIndex: 0,
+                    onPlayTurn: onPlayTurn,
+                    onRevealTurn: onRevealTurn
+                )
             }
         case .bullets:
-            HomeDetailSection(title: LocalizedStringKey(section.title)) {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Array(section.bullets.enumerated()), id: \.offset) { index, text in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HomeDetailBulletList(items: [text])
-                            MeetingEvidenceLinks(session: session, section: section, itemIndex: index, onRevealTurn: onRevealTurn)
-                        }
-                    }
-                }
-            }
+            MeetingSummaryBulletsSectionView(
+                session: session,
+                section: section,
+                onPlayTurn: onPlayTurn,
+                onRevealTurn: onRevealTurn
+            )
         case .actionItems:
-            HomeDetailSection(title: LocalizedStringKey(section.title)) {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(section.actionItems.enumerated()), id: \.element.id) { index, item in
-                        VStack(alignment: .leading, spacing: 4) {
-                            MeetingActionItemRow(sessionId: session.id, sectionId: section.id, item: item)
-                            MeetingEvidenceLinks(session: session, section: section, itemIndex: index, onRevealTurn: onRevealTurn)
-                        }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(section.actionItems.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 {
+                        Divider().opacity(0.5)
+                    }
+                    VStack(alignment: .leading, spacing: 5) {
+                        MeetingActionItemRow(sessionId: session.id, sectionId: section.id, item: item)
+                        MeetingEvidenceLinks(
+                            session: session,
+                            section: section,
+                            itemIndex: index,
+                            onPlayTurn: onPlayTurn,
+                            onRevealTurn: onRevealTurn
+                        )
+                        .padding(.leading, 33)
                     }
                 }
             }
         }
+    }
+}
+
+private struct MeetingSummaryBulletsSectionView: View {
+    let session: MeetingSession
+    let section: MeetingSummarySection
+    var onPlayTurn: ((MeetingTurn) -> Void)? = nil
+    var onRevealTurn: ((MeetingTurn) -> Void)? = nil
+
+    @State private var selectedGroupID: String?
+
+    private var groups: [MeetingSummaryBulletGroup]? {
+        MeetingSummaryBulletGroup.groups(for: section.bullets)
+    }
+
+    var body: some View {
+        Group {
+            if let groups {
+                groupedContent(groups)
+            } else {
+                flatBulletsContent
+            }
+        }
+        .onChange(of: session.id) { _, _ in selectedGroupID = nil }
+        .onChange(of: section.id) { _, _ in selectedGroupID = nil }
+    }
+
+    private func groupedContent(_ groups: [MeetingSummaryBulletGroup]) -> some View {
+        let visibleGroups: [MeetingSummaryBulletGroup] = {
+            if let selectedGroupID,
+               let match = groups.first(where: { $0.id == selectedGroupID }) {
+                return [match]
+            }
+            return groups
+        }()
+
+        return VStack(alignment: .leading, spacing: 14) {
+            if groups.count >= 2 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        personChip(
+                            title: String(localized: "Todos"),
+                            count: section.displayItemCount,
+                            dotColor: nil,
+                            selected: selectedGroupID == nil
+                        ) {
+                            withAnimation(.easeOut(duration: 0.14)) {
+                                selectedGroupID = nil
+                            }
+                        }
+
+                        ForEach(groups) { group in
+                            personChip(
+                                title: group.title,
+                                count: group.entries.count,
+                                dotColor: groupColor(for: group),
+                                selected: selectedGroupID == group.id
+                            ) {
+                                withAnimation(.easeOut(duration: 0.14)) {
+                                    selectedGroupID = selectedGroupID == group.id ? nil : group.id
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(visibleGroups) { group in
+                    groupBlock(group, showHeader: selectedGroupID == nil || groups.count == 1)
+                }
+            }
+        }
+    }
+
+    private func groupBlock(_ group: MeetingSummaryBulletGroup, showHeader: Bool) -> some View {
+        let color = groupColor(for: group)
+        return VStack(alignment: .leading, spacing: 8) {
+            if showHeader {
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 8, height: 8)
+                    Text(group.title)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(VoizTheme.primaryText)
+                    Text("\(group.entries.count)")
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(VoizTheme.mutedText)
+                    Spacer(minLength: 0)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                ForEach(group.entries) { entry in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text("•")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(VoizTheme.mutedText)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                if let tag = entry.tag {
+                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                        tagBadge(tag)
+                                        Text(entry.text)
+                                            .font(.system(size: 14))
+                                            .foregroundColor(VoizTheme.primaryText)
+                                            .lineSpacing(3)
+                                            .textSelection(.enabled)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                } else {
+                                    Text(entry.text)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(VoizTheme.primaryText)
+                                        .lineSpacing(3)
+                                        .textSelection(.enabled)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                MeetingEvidenceLinks(
+                                    session: session,
+                                    section: section,
+                                    itemIndex: entry.index,
+                                    onPlayTurn: onPlayTurn,
+                                    onRevealTurn: onRevealTurn
+                                )
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+            .padding(.leading, showHeader ? 2 : 0)
+        }
+        .padding(showHeader ? 12 : 0)
+        .background(
+            showHeader ? VoizTheme.appBackground.opacity(0.45) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(showHeader ? VoizTheme.border.opacity(0.8) : Color.clear, lineWidth: 1)
+        )
+    }
+
+    private var flatBulletsContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(section.bullets.enumerated()), id: \.offset) { index, text in
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text("•")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(VoizTheme.mutedText)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(trimmed)
+                                .font(.system(size: 14))
+                                .foregroundColor(VoizTheme.primaryText)
+                                .lineSpacing(3)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                            MeetingEvidenceLinks(
+                                session: session,
+                                section: section,
+                                itemIndex: index,
+                                onPlayTurn: onPlayTurn,
+                                onRevealTurn: onRevealTurn
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private func personChip(
+        title: String,
+        count: Int,
+        dotColor: Color?,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let dotColor {
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: 7, height: 7)
+                }
+                Text(title)
+                    .font(.system(size: 12, weight: selected ? .semibold : .medium))
+                    .foregroundColor(selected ? VoizTheme.primaryText : VoizTheme.mutedText)
+                    .lineLimit(1)
+                Text("\(count)")
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .foregroundColor(selected ? VoizTheme.accentBright : VoizTheme.mutedText.opacity(0.85))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                selected ? VoizTheme.accent.opacity(0.16) : VoizTheme.elevatedBackground,
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().stroke(selected ? VoizTheme.accent.opacity(0.45) : VoizTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func groupColor(for group: MeetingSummaryBulletGroup) -> Color {
+        if group.isOther { return VoizTheme.mutedText }
+        if let speaker = MeetingSummaryBulletGroup.matchingSpeaker(for: group.title, in: session.speakers) {
+            return meetingSpeakerColor(source: speaker.source, speakerId: speaker.id)
+        }
+        return meetingSpeakerColor(source: .systemAudio, speakerId: group.id)
+    }
+
+    private func tagBadge(_ tag: String) -> some View {
+        let tint = tagTint(for: tag)
+        return Text(tag)
+            .font(.system(size: 10.5, weight: .semibold))
+            .foregroundColor(tint)
+            .padding(.horizontal, 6.5)
+            .padding(.vertical, 1.5)
+            .background(tint.opacity(0.14), in: Capsule())
+            .fixedSize()
+    }
+
+    private func tagTint(for tag: String) -> Color {
+        let normalized = tag.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        if normalized.contains("bloqueio") || normalized.contains("impedimento") || normalized.contains("risco") || normalized.contains("block") {
+            return .orange
+        }
+        if normalized.contains("feito") || normalized.contains("concluido") || normalized.contains("ontem") || normalized.contains("done") {
+            return .green
+        }
+        if normalized.contains("hoje") || normalized.contains("andamento") || normalized.contains("proximo") || normalized.contains("today") || normalized.contains("next") {
+            return VoizTheme.accentBright
+        }
+        return VoizTheme.mutedText
     }
 }
 

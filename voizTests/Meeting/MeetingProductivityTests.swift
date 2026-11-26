@@ -177,4 +177,107 @@ struct MeetingProductivityTests {
         #expect(ChatSlashCommand.apply(recipe, to: "para a sprint") == "/riscos para a sprint")
         #expect(ChatSlashCommand.apply(recipe, to: "/decisoes para a sprint") == "/riscos para a sprint")
     }
+
+    @Test("Bullet grouper clusters repeated person prefixes, extracts tags and preserves evidence indices")
+    func bulletGroupingByPerson() {
+        let bullets = [
+            "Ana Silva — feito: concluiu a limpeza do ambiente de homologação.",
+            "Ana Silva — feito: atualizou a biblioteca interna em 3 módulos.",
+            "Bruno Costa — feito: alinhou o contrato da API de integração.",
+            "Bruno Costa — hoje: revisar os pull requests pendentes."
+        ]
+
+        let groups = MeetingSummaryBulletGroup.groups(for: bullets)
+        #expect(groups?.count == 2)
+        #expect(groups?[0].title == "Ana Silva")
+        #expect(groups?[0].entries.map(\.index) == [0, 1])
+        #expect(groups?[0].entries.map(\.tag) == ["Feito", "Feito"])
+        #expect(groups?[0].entries[0].text == "concluiu a limpeza do ambiente de homologação.")
+        #expect(groups?[1].title == "Bruno Costa")
+        #expect(groups?[1].entries.map(\.index) == [2, 3])
+        #expect(groups?[1].entries.map(\.tag) == ["Feito", "Hoje"])
+        #expect(groups?[1].entries[1].text == "revisar os pull requests pendentes.")
+    }
+
+    @Test("Bullet grouper skips sections without repeated prefixes and keeps ungrouped items when grouping activates")
+    func bulletGroupingThresholds() {
+        let uniqueBlockers = [
+            "Ana: 4 pull requests aguardam revisão externa.",
+            "Controle de acesso: nova regra exige dois aprovadores.",
+            "Carlos: depende de liberação do ambiente de testes."
+        ]
+        #expect(MeetingSummaryBulletGroup.groups(for: uniqueBlockers) == nil)
+
+        let mixed = [
+            "Ana — concluído: fechou o deploy.",
+            "Ana — hoje: acompanhar métricas.",
+            "Bruno — feito: atualizou a documentação.",
+            "Observação geral sem prefixo de pessoa."
+        ]
+        let groups = MeetingSummaryBulletGroup.groups(for: mixed)
+        #expect(groups?.count == 3)
+        #expect(groups?[0].title == "Ana")
+        #expect(groups?[1].title == "Bruno")
+        #expect(groups?[2].isOther == true)
+        #expect(groups?[2].entries.map(\.index) == [3])
+    }
+
+    @Test("Bullet grouper matches speakers by exact or unambiguous first name")
+    func bulletGroupSpeakerMatch() {
+        let speakers = [
+            MeetingSpeaker(id: "microphone", source: .microphone, name: "Bruno"),
+            MeetingSpeaker(id: "S1", source: .systemAudio, name: "Ana"),
+            MeetingSpeaker(id: "S2", source: .systemAudio, name: "Carlos Melo"),
+            MeetingSpeaker(id: "S3", source: .systemAudio, name: "Carlos Lima")
+        ]
+
+        #expect(MeetingSummaryBulletGroup.matchingSpeaker(for: "Ana Silva", in: speakers)?.id == "S1")
+        #expect(MeetingSummaryBulletGroup.matchingSpeaker(for: "Bruno Costa", in: speakers)?.id == "microphone")
+        #expect(MeetingSummaryBulletGroup.matchingSpeaker(for: "Carlos", in: speakers) == nil)
+        #expect(MeetingSummaryBulletGroup.matchingSpeaker(for: "Carlos Lima", in: speakers)?.id == "S3")
+    }
+
+    @Test("Transcript grouper merges consecutive turns by same speaker within gap and cap while keeping turn IDs")
+    func transcriptGrouping() {
+        let t1 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Começando", startTime: 0, endTime: 4)
+        let t2 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Sobre o serviço", startTime: 5, endTime: 10)
+        let t3 = MeetingTurn(source: .microphone, speakerId: "microphone", speakerName: "Você", text: "Beleza", startTime: 11, endTime: 13)
+        let t4 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Depois da pausa", startTime: 60, endTime: 65)
+        let t5 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Outro bloco", startTime: 120, endTime: 125)
+
+        let groups = MeetingTranscriptGroup.group([t1, t2, t3, t4, t5], maxGap: 30, maxTurnsPerGroup: 8)
+        #expect(groups.count == 4)
+        #expect(groups[0].turns.map(\.id) == [t1.id, t2.id])
+        #expect(groups[1].turns.map(\.id) == [t3.id])
+        #expect(groups[2].turns.map(\.id) == [t4.id])
+        #expect(groups[3].turns.map(\.id) == [t5.id])
+    }
+
+    @Test("Transcript group lookup resolves the containing group ID for both first and non-first turns")
+    func transcriptGroupLookup() {
+        let t1 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Primeira parte", startTime: 0, endTime: 4)
+        let t2 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Segunda parte", startTime: 5, endTime: 10)
+        let t3 = MeetingTurn(source: .microphone, speakerId: "microphone", speakerName: "Você", text: "Entendido", startTime: 11, endTime: 14)
+
+        let turns = [t1, t2, t3]
+        #expect(MeetingTranscriptGroup.groupID(containing: t1.id, in: turns) == t1.id)
+        #expect(MeetingTranscriptGroup.groupID(containing: t2.id, in: turns) == t1.id)
+        #expect(MeetingTranscriptGroup.groupID(containing: t3.id, in: turns) == t3.id)
+        #expect(MeetingTranscriptGroup.groupID(containing: UUID(), in: turns) == nil)
+    }
+
+    @Test("Chapter time lookup prefers a turn containing the timestamp before falling back to nearby turns")
+    func transcriptTurnLookupAtTime() {
+        let t1 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Bloco longo", startTime: 10, endTime: 50)
+        let t2 = MeetingTurn(source: .systemAudio, speakerId: "S2", speakerName: "Bruno", text: "Próximo bloco", startTime: 60, endTime: 70)
+        let turns = [t1, t2]
+
+        #expect(MeetingTranscriptGroup.turn(at: 30, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 10, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 50, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 55, in: turns)?.id == t2.id)
+        #expect(MeetingTranscriptGroup.turn(at: 0, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 90, in: turns)?.id == t2.id)
+        #expect(MeetingTranscriptGroup.turn(at: 15, in: []) == nil)
+    }
 }

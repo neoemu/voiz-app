@@ -420,41 +420,151 @@ struct MeetingLiveContextControl: View {
 }
 
 struct MeetingEvidenceLinks: View {
+    private struct EvidencePopoverPayload: Identifiable {
+        let id = UUID()
+        let turns: [MeetingTurn]
+    }
+
     let session: MeetingSession
     let section: MeetingSummarySection
     let itemIndex: Int
-    var onRevealTurn: ((MeetingTurn) -> Void)?
-    @State private var preview: MeetingTurn?
+    var onPlayTurn: ((MeetingTurn) -> Void)? = nil
+    var onRevealTurn: ((MeetingTurn) -> Void)? = nil
+    @State private var activePopover: EvidencePopoverPayload?
+
     private var turns: [MeetingTurn] {
         let ids = Set((section.evidence ?? []).filter { $0.itemIndex == itemIndex }.flatMap(\.turnIDs))
-        return session.turns.filter { ids.contains($0.id) }
+        return Array(session.turns.filter { ids.contains($0.id) }.prefix(4))
     }
+
     var body: some View {
-        if !turns.isEmpty {
-            HStack(spacing: 10) {
-                ForEach(turns.prefix(4)) { turn in
+        if let first = turns.first {
+            HStack(spacing: 5) {
+                Button {
+                    onPlayTurn?(first)
+                    activePopover = EvidencePopoverPayload(turns: [first])
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 7.5))
+                        Text(timeLabel(first.startTime))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(VoizTheme.accent)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2.5)
+                    .background(VoizTheme.accent.opacity(0.10), in: Capsule())
+                    .overlay(Capsule().stroke(VoizTheme.accent.opacity(0.20), lineWidth: 0.75))
+                }
+                .buttonStyle(.plain)
+                .help("Ir para a fala de origem")
+                .accessibilityLabel(Text("Ir para a fala de origem"))
+                .accessibilityValue(Text(timeLabel(first.startTime)))
+
+                if turns.count > 1 {
                     Button {
-                        if let onRevealTurn { onRevealTurn(turn) } else { preview = turn }
+                        activePopover = EvidencePopoverPayload(turns: turns)
                     } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 8))
-                            Text(timeLabel(turn.startTime))
-                                .font(.system(size: 12, design: .monospaced))
-                        }
-                    }.buttonStyle(.plain).foregroundStyle(VoizTheme.accent)
-                        .help("Ir para a fala de origem")
-                        .accessibilityLabel(Text("Ir para a fala de origem"))
-                        .accessibilityValue(Text(timeLabel(turn.startTime)))
+                        Text("+\(turns.count - 1)")
+                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(VoizTheme.mutedText)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(VoizTheme.elevatedBackground, in: Capsule())
+                            .overlay(Capsule().stroke(VoizTheme.border, lineWidth: 0.75))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Falas citadas")
+                    .accessibilityLabel(Text("Falas citadas"))
                 }
             }
-            .popover(item: $preview) { turn in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(turn.speakerName).font(.headline)
-                    Text(turn.text).textSelection(.enabled)
-                }.padding(18).frame(width: 360)
+            .popover(item: $activePopover, arrowEdge: .bottom) { payload in
+                evidencePopover(turns: payload.turns)
             }
         }
+    }
+
+    private func evidencePopover(turns popoverTurns: [MeetingTurn]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if popoverTurns.count > 1 {
+                HStack {
+                    Text("Falas citadas")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(VoizTheme.mutedText)
+                        .textCase(.uppercase)
+                    Spacer(minLength: 0)
+                    Text("\(popoverTurns.count)")
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(VoizTheme.mutedText)
+                }
+            }
+
+            if popoverTurns.count == 1 {
+                turnsList(popoverTurns)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView {
+                    turnsList(popoverTurns)
+                        .padding(.trailing, 4)
+                }
+                .frame(height: min(320, CGFloat(popoverTurns.count) * 96))
+            }
+        }
+        .padding(14)
+        .frame(width: 360)
+    }
+
+    private func turnsList(_ popoverTurns: [MeetingTurn]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(popoverTurns.enumerated()), id: \.element.id) { offset, turn in
+                if offset > 0 {
+                    Divider()
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(turn.speakerName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(VoizTheme.primaryText)
+                        Text(timeLabel(turn.startTime))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(VoizTheme.accent)
+                        Spacer(minLength: 8)
+                        if let onPlayTurn {
+                            Button {
+                                onPlayTurn(turn)
+                            } label: {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(VoizTheme.accent)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Tocar a partir daqui")
+                            .accessibilityLabel(Text("Tocar a partir daqui"))
+                        }
+                    }
+                    Text(turn.text)
+                        .font(.system(size: 13))
+                        .foregroundColor(VoizTheme.primaryText)
+                        .lineSpacing(3)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let onRevealTurn {
+                        Button {
+                            activePopover = nil
+                            onRevealTurn(turn)
+                        } label: {
+                            Label("Ver na transcrição", systemImage: "arrow.right.circle")
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(VoizTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func timeLabel(_ time: TimeInterval) -> String {
