@@ -28,6 +28,19 @@ final class VoizNavigation: ObservableObject {
         requestedTab = result.kind.tab
     }
 
+    /// Navega para a revisão de uma reunião específica (ex.: clique no toast do notch).
+    func openMeeting(id: UUID) {
+        open(
+            VoizSearchResult(
+                id: id,
+                kind: .meeting,
+                title: "",
+                snippet: "",
+                date: .distantPast
+            )
+        )
+    }
+
     /// Item pendente desta aba, se houver. Não limpa — quem consome chama `clear()` depois de
     /// realmente abrir o conteúdo.
     func pending(_ kind: VoizSearchKind) -> UUID? {

@@ -252,11 +252,20 @@ struct ContentView: View {
             isCompactSidebarOpen = false
             selectedTab = 6
         }
-        // Card flutuante "Reunião detectada" → botão Gravar abre direto a aba Reuniões.
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("VoizOpenMeetingsTab"))) { _ in
+        // Card flutuante "Reunião detectada" ou toast/atalho do notch → abre a aba Reuniões
+        // (e, quando um sessionID acompanha a notificação, roteia para a revisão daquela reunião).
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("VoizOpenMeetingsTab"))) { notification in
             isCompactSidebarOpen = false
-            navigation.calendarEvent = nil
-            selectedTab = 4
+            if let sessionID = notification.object as? UUID {
+                if meetingViewModel.viewingFolderId != nil {
+                    meetingViewModel.viewingFolderId = nil
+                }
+                navigation.openMeeting(id: sessionID)
+                selectedTab = VoizSearchKind.meeting.tab
+            } else {
+                navigation.calendarEvent = nil
+                selectedTab = VoizSearchKind.meeting.tab
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("VoizOpenSearch"))) { _ in
             isCompactSidebarOpen = false

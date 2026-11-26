@@ -747,10 +747,11 @@ final class MeetingViewModel: ObservableObject {
                 let settings = self.settingsStore.load()
                 self.appDetectionService.configure(enabled: settings.meetingDetectionEnabled)
                 let wasNotchEnabled = self.notchOverlayEnabled
+                let wasIndicatorEnabled = self.meetingIndicatorEnabled
                 self.notchOverlayEnabled = settings.notchOverlayEnabled
                 self.meetingIndicatorEnabled = settings.showRecordingHUD
                 NotchOverlay.shared.isEnabled = settings.notchOverlayEnabled
-                if wasNotchEnabled != settings.notchOverlayEnabled,
+                if (wasNotchEnabled != settings.notchOverlayEnabled || wasIndicatorEnabled != settings.showRecordingHUD),
                    self.state == .listening,
                    let active = self.activeSession {
                     self.syncActiveRecordingIndicators(
@@ -1508,9 +1509,13 @@ final class MeetingViewModel: ObservableObject {
 
     /// Traz a janela principal do Voiz para frente na aba Reuniões (opcionalmente abrindo uma sessão).
     func openMeetingsWindow(selecting sessionID: UUID? = nil) {
+        let targetSessionID: UUID?
         if let sessionID, activeSession == nil, let session = sessionForEditing(id: sessionID) {
             viewingFolderId = nil
             selectedSession = session
+            targetSessionID = session.id
+        } else {
+            targetSessionID = nil
         }
         NSApp.unhide(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -1524,7 +1529,7 @@ final class MeetingViewModel: ObservableObject {
         }
         NotificationCenter.default.post(
             name: Notification.Name("VoizOpenMeetingsTab"),
-            object: nil
+            object: targetSessionID
         )
     }
 
