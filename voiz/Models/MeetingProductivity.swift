@@ -394,6 +394,30 @@ struct MeetingTranscriptGroup: Identifiable, Equatable {
         }
         return groups
     }
+
+    /// Resolve o ID do grupo (diretamente endereçável na `LazyVStack`) que contém `turnID`.
+    static func groupID(
+        containing turnID: UUID,
+        in turns: [MeetingTurn],
+        maxGap: TimeInterval = 30,
+        maxTurnsPerGroup: Int = 8
+    ) -> UUID? {
+        group(turns, maxGap: maxGap, maxTurnsPerGroup: maxTurnsPerGroup)
+            .first(where: { $0.turns.contains(where: { $0.id == turnID }) })?
+            .id
+    }
+
+    /// Escolhe o turno correspondente a um instante de áudio (ex.: início de capítulo).
+    /// Prioriza um turno que contém `time` (`startTime <= time <= endTime`); em silêncios,
+    /// escolhe a próxima fala ou a última fala anterior.
+    static func turn(at time: TimeInterval, in turns: [MeetingTurn]) -> MeetingTurn? {
+        if let containing = turns.last(where: { $0.startTime <= time && time <= $0.endTime }) {
+            return containing
+        }
+        return turns.first(where: { $0.startTime >= time - 1.0 })
+            ?? turns.last(where: { $0.startTime <= time })
+            ?? turns.first
+    }
 }
 
 extension MeetingSummarySection {

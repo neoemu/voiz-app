@@ -2151,6 +2151,11 @@ private enum MeetingReviewTab: String, CaseIterable, Identifiable {
     }
 }
 
+private struct MeetingTranscriptScrollRequest: Equatable {
+    let token = UUID()
+    let turnID: UUID
+}
+
 struct MeetingReviewView: View {
     @EnvironmentObject var viewModel: MeetingViewModel
     @EnvironmentObject private var companionOverlay: MeetingReviewCompanionPresentation
@@ -2159,7 +2164,7 @@ struct MeetingReviewView: View {
     let onBack: () -> Void
     @StateObject private var audioPlayer = MeetingAudioPlayer()
     @State private var selectedTab: MeetingReviewTab = .summary
-    @State private var pendingTranscriptScrollTurnID: UUID?
+    @State private var pendingTranscriptScroll: MeetingTranscriptScrollRequest?
     @State private var transcriptSearchQuery = ""
     @State private var transcriptSpeakerFilter: String?
 
@@ -2174,7 +2179,7 @@ struct MeetingReviewView: View {
                                     .padding(.bottom, 14)
 
                                 Section {
-                                    tabContent(proxy: proxy)
+                                    tabContent
                                         .padding(.top, 18)
                                         .padding(.bottom, audioPlayer.isAvailable ? 92 : 40)
                                 } header: {
@@ -2196,7 +2201,7 @@ struct MeetingReviewView: View {
                         MeetingDockedPlayerBar(
                             player: audioPlayer,
                             showJumpToTranscript: selectedTab != .transcript,
-                            onJumpToTranscript: { jumpToCurrentPlayingTurn(using: proxy) }
+                            onJumpToTranscript: { jumpToCurrentPlayingTurn() }
                         )
                         .frame(maxWidth: MeetingLayout.maxWidth)
                         .padding(.horizontal, MeetingLayout.horizontalPadding)
@@ -2229,7 +2234,7 @@ struct MeetingReviewView: View {
                 .onChange(of: session) { previous, current in
                     if previous.id != current.id {
                         selectedTab = .summary
-                        pendingTranscriptScrollTurnID = nil
+                        pendingTranscriptScroll = nil
                         transcriptSearchQuery = ""
                         transcriptSpeakerFilter = nil
                         companionOverlay.registerHost(session: current, player: audioPlayer, viewportWidth: viewport.size.width)
@@ -2238,12 +2243,18 @@ struct MeetingReviewView: View {
                     }
                 }
                 .task(id: scrollTriggerIdentity) {
-                    guard selectedTab == .transcript, let targetID = pendingTranscriptScrollTurnID else { return }
+                    guard selectedTab == .transcript, let request = pendingTranscriptScroll else { return }
                     await Task.yield()
-                    withAnimation(.easeOut(duration: 0.22)) {
-                        proxy.scrollTo(targetID, anchor: .center)
+                    guard !Task.isCancelled, pendingTranscriptScroll == request else { return }
+                    if let groupID = MeetingTranscriptGroup.groupID(containing: request.turnID, in: session.turns) {
+                        proxy.scrollTo(MeetingReviewTranscript.groupScrollID(for: groupID), anchor: .center)
+                        try? await Task.sleep(for: .milliseconds(24))
+                        guard !Task.isCancelled, pendingTranscriptScroll == request else { return }
                     }
-                    pendingTranscriptScrollTurnID = nil
+                    withAnimation(.easeOut(duration: 0.22)) {
+                        proxy.scrollTo(request.turnID, anchor: .center)
+                    }
+                    pendingTranscriptScroll = nil
                 }
             }
         }
@@ -2257,7 +2268,7 @@ struct MeetingReviewView: View {
     }
 
     private var scrollTriggerIdentity: String {
-        "\(selectedTab.rawValue)|\(pendingTranscriptScrollTurnID?.uuidString ?? "")"
+        "\(selectedTab.rawValue)|\(pendingTranscriptScroll?.token.uuidString ?? "")"
     }
 
     private var headerSection: some View {
@@ -2415,7 +2426,7 @@ struct MeetingReviewView: View {
     }
 
     @ViewBuilder
-    private func tabContent(proxy: ScrollViewProxy) -> some View {
+    private var tabContent: some View {
         switch selectedTab {
         case .summary:
             VStack(alignment: .leading, spacing: 18) {
@@ -2426,7 +2437,7 @@ struct MeetingReviewView: View {
                             if audioPlayer.isAvailable { audioPlayer.playFrom(turn.startTime) }
                         },
                         onRevealTurn: { turn in
-                            revealTurnInTranscript(turn, proxy: proxy)
+                            revealTurnInTranscript(turn)
                         }
                     )
                 } else if !(viewModel.isGeneratingSummary && viewModel.selectedSession?.id == session.id) {
@@ -2449,9 +2460,7 @@ struct MeetingReviewView: View {
                     if let target = turnNearest(to: time) {
                         transcriptSearchQuery = ""
                         transcriptSpeakerFilter = nil
-                        withAnimation(.easeOut(duration: 0.22)) {
-                            proxy.scrollTo(target.id, anchor: .center)
-                        }
+                        pendingTranscriptScroll = MeetingTranscriptScrollRequest(turnID: target.id)
                     }
                 }
             )
@@ -2478,29 +2487,25 @@ struct MeetingReviewView: View {
         }
     }
 
-    private func revealTurnInTranscript(_ turn: MeetingTurn, proxy: ScrollViewProxy) {
+    private func revealTurnInTranscript(_ turn: MeetingTurn) {
         if audioPlayer.isAvailable { audioPlayer.playFrom(turn.startTime) }
         transcriptSearchQuery = ""
         transcriptSpeakerFilter = nil
-        if selectedTab == .transcript {
-            withAnimation(.easeOut(duration: 0.22)) {
-                proxy.scrollTo(turn.id, anchor: .center)
-            }
-        } else {
-            pendingTranscriptScrollTurnID = turn.id
+        pendingTranscriptScroll = MeetingTranscriptScrollRequest(turnID: turn.id)
+        if selectedTab != .transcript {
             withAnimation(.easeOut(duration: 0.14)) {
                 selectedTab = .transcript
             }
         }
     }
 
-    private func jumpToCurrentPlayingTurn(using proxy: ScrollViewProxy) {
+    private func jumpToCurrentPlayingTurn() {
         let targetID = audioPlayer.turnPlaybackState.currentTurnID
             ?? turnNearest(to: audioPlayer.playbackState.currentTime)?.id
         transcriptSearchQuery = ""
         transcriptSpeakerFilter = nil
         if let targetID {
-            pendingTranscriptScrollTurnID = targetID
+            pendingTranscriptScroll = MeetingTranscriptScrollRequest(turnID: targetID)
         }
         withAnimation(.easeOut(duration: 0.14)) {
             selectedTab = .transcript
@@ -2508,9 +2513,7 @@ struct MeetingReviewView: View {
     }
 
     private func turnNearest(to time: TimeInterval) -> MeetingTurn? {
-        session.turns.first(where: { $0.startTime >= time - 1.0 })
-            ?? session.turns.last(where: { $0.startTime <= time })
-            ?? session.turns.first
+        MeetingTranscriptGroup.turn(at: time, in: session.turns)
     }
 
     private func showsCompanionOverlay(width: CGFloat) -> Bool {
@@ -3774,6 +3777,10 @@ private struct MeetingTranscriptChaptersStrip: View {
 }
 
 struct MeetingReviewTranscript: View {
+    static func groupScrollID(for groupID: UUID) -> String {
+        "transcript-group:\(groupID.uuidString)"
+    }
+
     let session: MeetingSession
     let player: MeetingAudioPlayer
     @Binding var searchQuery: String
@@ -3932,6 +3939,7 @@ struct MeetingReviewTranscript: View {
                             currentTurnID: currentID,
                             onSeek: player.isAvailable ? { turn in player.playFrom(turn.startTime) } : nil
                         )
+                        .id(Self.groupScrollID(for: group.id))
                     }
                 }
                 .padding(16)

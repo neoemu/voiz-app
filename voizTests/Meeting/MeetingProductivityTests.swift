@@ -252,4 +252,32 @@ struct MeetingProductivityTests {
         #expect(groups[2].turns.map(\.id) == [t4.id])
         #expect(groups[3].turns.map(\.id) == [t5.id])
     }
+
+    @Test("Transcript group lookup resolves the containing group ID for both first and non-first turns")
+    func transcriptGroupLookup() {
+        let t1 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Primeira parte", startTime: 0, endTime: 4)
+        let t2 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Segunda parte", startTime: 5, endTime: 10)
+        let t3 = MeetingTurn(source: .microphone, speakerId: "microphone", speakerName: "Você", text: "Entendido", startTime: 11, endTime: 14)
+
+        let turns = [t1, t2, t3]
+        #expect(MeetingTranscriptGroup.groupID(containing: t1.id, in: turns) == t1.id)
+        #expect(MeetingTranscriptGroup.groupID(containing: t2.id, in: turns) == t1.id)
+        #expect(MeetingTranscriptGroup.groupID(containing: t3.id, in: turns) == t3.id)
+        #expect(MeetingTranscriptGroup.groupID(containing: UUID(), in: turns) == nil)
+    }
+
+    @Test("Chapter time lookup prefers a turn containing the timestamp before falling back to nearby turns")
+    func transcriptTurnLookupAtTime() {
+        let t1 = MeetingTurn(source: .systemAudio, speakerId: "S1", speakerName: "Ana", text: "Bloco longo", startTime: 10, endTime: 50)
+        let t2 = MeetingTurn(source: .systemAudio, speakerId: "S2", speakerName: "Bruno", text: "Próximo bloco", startTime: 60, endTime: 70)
+        let turns = [t1, t2]
+
+        #expect(MeetingTranscriptGroup.turn(at: 30, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 10, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 50, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 55, in: turns)?.id == t2.id)
+        #expect(MeetingTranscriptGroup.turn(at: 0, in: turns)?.id == t1.id)
+        #expect(MeetingTranscriptGroup.turn(at: 90, in: turns)?.id == t2.id)
+        #expect(MeetingTranscriptGroup.turn(at: 15, in: []) == nil)
+    }
 }
