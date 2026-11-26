@@ -72,6 +72,7 @@
 				Models/MeetingCalendarModels.swift,
 				Models/MeetingProductivity.swift,
 				Models/MeetingTemplate.swift,
+				Models/NotchOverlayLayout.swift,
 				Models/TranscriptionEntry.swift,
 				Models/TranscriptionModels.swift,
 				Models/TranslationEntry.swift,

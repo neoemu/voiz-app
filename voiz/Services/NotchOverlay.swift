@@ -1,39 +1,56 @@
 import AppKit
 import SwiftUI
 
-/// Overlay ancorado no notch do MacBook (estilo Droppy/Dynamic Island): mostra o status
-/// de gravação de reunião nas "asas" ao lado do notch, toasts de conclusão ("Resumo
-/// pronto ✓"), expande no hover com os bullets ao vivo + controles, e apresenta o
-/// prompt "reunião detectada — gravar?". Em telas sem notch, vira uma pílula preta.
+/// Overlay ancorado no notch do MacBook (estilo Dynamic Island): mostra status de
+/// gravação de reunião, pós-processamento contínuo, ditado, countdown de calendário,
+/// toasts compactos abaixo do notch (inclusive clicáveis) e prompt "reunião detectada".
+/// Em Macs sem notch físico, renderiza como pílula flutuante limpa abaixo da menu bar.
 ///
-/// Não existe API da Apple pro notch — a técnica é um `NSPanel` borderless preto
-/// posicionado exatamente sobre a região do notch, acima da menu bar, que visualmente
-/// "estende" o hardware. O vão central nunca recebe conteúdo (ali é o recorte físico).
-///
-/// Interação: no estado passivo o painel é click-through (não pode roubar cliques da
-/// menu bar). Quando expande (hover) ou mostra o prompt, o painel é redimensionado pra
-/// exatamente o conteúdo e passa a aceitar mouse; ao recolher, volta a ser fantasma.
+/// Fluidez:
+/// - O `NSPanel` usa um canvas fixo dimensionado uma única vez por tela: nunca chama
+///   `setFrame` durante entradas, expansões ou recolhimentos, permitindo springs nativos
+///   a 120Hz sem saltos de janela.
+/// - No estado passivo o painel é `ignoresMouseEvents = true` (100% click-through).
+///   Quando interativo (expandido, prompt ou toast acionável), a janela transparente do
+///   macOS repassa cliques fora do corpo preto automaticamente por alpha hit-testing.
 @MainActor
 final class NotchOverlay {
     static let shared = NotchOverlay()
 
     /// Controlado pelas configurações (`notchOverlayEnabled`). Opt-in.
-    var isEnabled = false
+    /// Desligar limpa imediatamente qualquer overlay ou monitor ativo.
+    var isEnabled = false {
+        didSet {
+            if !isEnabled {
+                resetAndHideImmediately()
+            }
+        }
+    }
 
     private let model = NotchOverlayModel()
     private var panel: NSPanel?
     private var hostingView: NSHostingView<NotchOverlayView>?
     private var toastDismissTask: Task<Void, Never>?
     private var promptTimeoutTask: Task<Void, Never>?
+    private var hoverOpenTask: Task<Void, Never>?
+    private var hoverCloseTask: Task<Void, Never>?
+    private var interactiveReturnTask: Task<Void, Never>?
+    private var idleDismissTask: Task<Void, Never>?
+    private var longTimerCheckTask: Task<Void, Never>?
     private var pauseBegan: Date?
     private var metrics: NotchMetrics?
 
     private var onTogglePause: (() -> Void)?
     private var onStop: (() -> Void)?
+    private var onOpenAssistant: (() -> Void)?
+    private var onOpenApp: (() -> Void)?
     private var onPromptRecord: (() -> Void)?
     private var onPromptDismiss: (() -> Void)?
     private var onCalendarRecord: (() -> Void)?
     private var onCalendarDismiss: (() -> Void)?
+    private var onToastTap: (() -> Void)?
+    private var onProcessingOpenApp: (() -> Void)?
+    private var isHoveringToast = false
 
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
@@ -56,22 +73,56 @@ final class NotchOverlay {
     // MARK: - Gravação
 
     func showRecording(
+        title: String = "",
+        initialElapsed: TimeInterval = 0,
+        livePreviewAvailable: Bool = false,
+        systemAudioAvailable: Bool = true,
         onTogglePause: (() -> Void)? = nil,
-        onStop: (() -> Void)? = nil
+        onStop: (() -> Void)? = nil,
+        onOpenAssistant: (() -> Void)? = nil,
+        onOpenApp: (() -> Void)? = nil
     ) {
         guard isEnabled else { return }
+        cancelHoverTimers()
+        idleDismissTask?.cancel()
         self.onTogglePause = onTogglePause
         self.onStop = onStop
+        self.onOpenAssistant = onOpenAssistant
+        self.onOpenApp = onOpenApp
+
+        let elapsed = max(0, initialElapsed)
+        let wasVisible = panel?.isVisible == true && model.isPresented
+        presentPanel(startingCollapsed: !wasVisible)
+
         model.isRecording = true
         model.isPaused = false
         model.expanded = false
-        model.recordingStart = Date()
+        model.recordingTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.livePreviewAvailable = livePreviewAvailable
+        model.systemAudioAvailable = systemAudioAvailable
+        model.recordingStart = Date().addingTimeInterval(-elapsed)
+        model.frozenElapsed = elapsed
+        model.hasLongTimer = elapsed >= 3600
         model.audioLevel = 0
+        model.microphoneLevel = 0
+        model.systemAudioLevel = 0
         model.liveTail = ""
         pauseBegan = nil
-        presentPanel()
-        applyPassiveLayout()
+
+        if wasVisible {
+            model.isPresented = true
+            syncMouseInteractivity()
+        } else {
+            animatePresentation()
+        }
+
         startHoverMonitoring()
+        scheduleLongTimerCheck()
+    }
+
+    func updateRecordingTitle(_ title: String) {
+        guard model.isRecording else { return }
+        model.recordingTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func setPaused(_ paused: Bool) {
@@ -80,66 +131,142 @@ final class NotchOverlay {
             pauseBegan = Date()
             model.frozenElapsed = Date().timeIntervalSince(model.recordingStart)
             model.audioLevel = 0
+            model.microphoneLevel = 0
+            model.systemAudioLevel = 0
         } else if let began = pauseBegan {
             // Empurra o início "virtual" pra frente pra descontar a pausa do cronômetro.
             model.recordingStart += Date().timeIntervalSince(began)
             pauseBegan = nil
         }
         model.isPaused = paused
+        scheduleLongTimerCheck()
     }
 
     func updateLevels(microphoneLevel: Float, systemAudioLevel: Float) {
         guard model.isRecording, !model.isPaused, panel?.isVisible == true else { return }
-        let raw = CGFloat(max(microphoneLevel, systemAudioLevel))
-        let target = min(max(raw * 12, 0), 1)
-        // Ataque rápido e queda suave, igual ao MeetingRecordingIndicator.
-        model.audioLevel = target >= model.audioLevel
-            ? target
-            : max(target, model.audioLevel * 0.72)
+        model.microphoneLevel = NotchOverlayLayout.smoothedAudioLevel(
+            raw: microphoneLevel,
+            current: model.microphoneLevel
+        )
+        model.systemAudioLevel = NotchOverlayLayout.smoothedAudioLevel(
+            raw: systemAudioLevel,
+            current: model.systemAudioLevel
+        )
+        model.audioLevel = max(model.microphoneLevel, model.systemAudioLevel)
     }
 
-    /// Cauda da prévia ao vivo mostrada no painel expandido: a view trunca o início,
-    /// então o texto "rola" acompanhando a fala.
+    /// Cauda da prévia ao vivo mostrada no painel expandido.
     func updateLivePreview(tail: String) {
         guard model.isRecording else { return }
-        model.liveTail = tail
+        model.liveTail = NotchOverlayLayout.cleanLiveTail(tail)
     }
 
     func hideRecording() {
+        cancelHoverTimers()
+        longTimerCheckTask?.cancel()
+        longTimerCheckTask = nil
         model.isRecording = false
         model.isPaused = false
         model.expanded = false
+        model.recordingTitle = ""
         model.liveTail = ""
+        model.hasLongTimer = false
+        model.audioLevel = 0
+        model.microphoneLevel = 0
+        model.systemAudioLevel = 0
         pauseBegan = nil
         onTogglePause = nil
         onStop = nil
-        if model.prompt == nil {
-            applyPassiveLayout()
+        onOpenAssistant = nil
+        onOpenApp = nil
+
+        syncMouseInteractivity()
+        stopHoverMonitoringIfUnneeded()
+        dismissPanelIfIdle()
+    }
+
+    // MARK: - Pós-processamento contínuo
+
+    /// Mantém feedback discreto no notch entre o fim da gravação e a entrega do resumo.
+    func showProcessing(
+        stage: NotchProcessingStage,
+        meetingTitle: String = "",
+        progress: Double? = nil,
+        onOpenApp: (() -> Void)? = nil
+    ) {
+        guard isEnabled else { return }
+        idleDismissTask?.cancel()
+        if let onOpenApp {
+            self.onProcessingOpenApp = onOpenApp
         }
+        let wasVisible = panel?.isVisible == true && model.isPresented
+        presentPanel(startingCollapsed: !wasVisible)
+
+        let cleanedTitle = meetingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.processing = NotchOverlayModel.Processing(
+            stage: stage,
+            meetingTitle: cleanedTitle.isEmpty ? (model.processing?.meetingTitle ?? "") : cleanedTitle,
+            progress: progress.map { min(max($0, 0), 1) }
+        )
+        if wasVisible {
+            model.isPresented = true
+            syncMouseInteractivity()
+        } else {
+            animatePresentation()
+        }
+        startHoverMonitoring()
+    }
+
+    func updateProcessingProgress(_ progress: Double?) {
+        guard var current = model.processing else { return }
+        current.progress = progress.map { min(max($0, 0), 1) }
+        model.processing = current
+    }
+
+    func hideProcessing() {
+        guard model.processing != nil else { return }
+        model.processing = nil
+        onProcessingOpenApp = nil
+        if model.expanded, !model.isRecording, model.calendarEvent == nil {
+            model.expanded = false
+        }
+        syncMouseInteractivity()
         stopHoverMonitoringIfUnneeded()
         dismissPanelIfIdle()
     }
 
     // MARK: - Ditado
 
-    /// Espelha o RecordingHUD do ditado no notch: mic + barras enquanto ouve,
+    /// Espelha o RecordingHUD do ditado no notch: mic + barras orgânicas enquanto ouve,
     /// spinner enquanto transcreve. Se uma reunião estiver gravando junto, o ditado
     /// tem precedência visual e a asa volta pro estado da reunião ao terminar.
     func showDictation(_ state: NotchDictationState) {
         guard isEnabled else { return }
+        idleDismissTask?.cancel()
+        let wasVisible = panel?.isVisible == true && model.isPresented
+        presentPanel(startingCollapsed: !wasVisible)
+
         if state == .processing {
             model.audioLevel = 0
         }
+        if model.expanded {
+            model.expanded = false
+        }
         model.dictation = state
-        presentPanel()
+        if wasVisible {
+            model.isPresented = true
+            syncMouseInteractivity()
+        } else {
+            animatePresentation()
+        }
     }
 
     func updateDictationLevel(_ level: Float) {
         guard model.dictation == .listening, panel?.isVisible == true else { return }
-        let target = min(max(CGFloat(level) * 12, 0), 1)
-        model.audioLevel = target >= model.audioLevel
-            ? target
-            : max(target, model.audioLevel * 0.72)
+        model.audioLevel = NotchOverlayLayout.smoothedAudioLevel(
+            raw: level,
+            current: model.audioLevel
+        )
     }
 
     func hideDictation() {
@@ -148,13 +275,14 @@ final class NotchOverlay {
         if !model.isRecording {
             model.audioLevel = 0
         }
+        syncMouseInteractivity()
         dismissPanelIfIdle()
     }
 
     // MARK: - Countdown de calendário
 
-    /// Reunião iminente do calendário: countdown "6m" nas asas (estilo Alcove);
-    /// hover expande com título, horário e botão Gravar.
+    /// Reunião iminente do calendário: countdown "6m" nas asas; hover expande com
+    /// título, horário e botão Gravar.
     func showCalendarCountdown(
         id: String,
         title: String,
@@ -164,16 +292,25 @@ final class NotchOverlay {
         onDismiss: @escaping () -> Void
     ) {
         guard isEnabled else { return }
+        idleDismissTask?.cancel()
         onCalendarRecord = onRecord
         onCalendarDismiss = onDismiss
+
+        let wasVisible = panel?.isVisible == true && model.isPresented
+        presentPanel(startingCollapsed: !wasVisible)
+
         model.calendarEvent = NotchOverlayModel.CalendarCountdown(
             id: id,
             title: title,
             startDate: startDate,
             isInProgress: isInProgress
         )
-        presentPanel()
-        // O countdown também expande no hover; liga o monitor se a gravação ainda não ligou.
+        if wasVisible {
+            model.isPresented = true
+            syncMouseInteractivity()
+        } else {
+            animatePresentation()
+        }
         startHoverMonitoring()
     }
 
@@ -182,35 +319,103 @@ final class NotchOverlay {
         model.calendarEvent = nil
         onCalendarRecord = nil
         onCalendarDismiss = nil
-        if model.expanded, !model.isRecording {
+        if model.expanded, !model.isRecording, model.processing == nil {
             model.expanded = false
-            applyPassiveLayout()
         }
-        if !model.isRecording {
-            stopHoverMonitoringIfUnneeded()
-        }
+        syncMouseInteractivity()
+        stopHoverMonitoringIfUnneeded()
         dismissPanelIfIdle()
     }
 
     // MARK: - Toasts
 
-    /// Toast transitório ("Resumo pronto ✓"). Funciona mesmo sem gravação ativa;
-    /// ao expirar, volta pro estado de gravação ou esconde o painel.
+    /// Toast transitório exibido na bandeja compacta logo abaixo do notch (sem esticar a menu bar).
+    /// Quando `onTap` é fornecido, o toast aceita clique e pausa o auto-dismiss durante o hover.
     func showToast(
         message: String,
+        detail: String? = nil,
         symbol: String = "checkmark.circle.fill",
-        duration: TimeInterval = 3.2
+        tone: NotchToastTone? = nil,
+        actionLabel: String? = nil,
+        duration: TimeInterval = 3.4,
+        onTap: (() -> Void)? = nil
     ) {
         guard isEnabled else { return }
+        idleDismissTask?.cancel()
         toastDismissTask?.cancel()
-        model.toast = NotchOverlayModel.Toast(id: UUID(), message: message, symbol: symbol)
-        presentPanel()
-        toastDismissTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            guard let self, !Task.isCancelled else { return }
-            self.model.toast = nil
-            self.dismissPanelIfIdle()
+        isHoveringToast = false
+        onToastTap = onTap
+
+        let wasVisible = panel?.isVisible == true && model.isPresented
+        presentPanel(startingCollapsed: !wasVisible)
+
+        let resolvedTone = tone ?? Self.inferredTone(for: symbol)
+        let cleanedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.toast = NotchOverlayModel.Toast(
+            id: UUID(),
+            message: message,
+            detail: cleanedDetail?.isEmpty == true ? nil : cleanedDetail,
+            symbol: symbol,
+            tone: resolvedTone,
+            actionLabel: onTap != nil ? (actionLabel ?? String(localized: "Abrir")) : nil,
+            isInteractive: onTap != nil
+        )
+        if wasVisible {
+            model.isPresented = true
+            syncMouseInteractivity()
+        } else {
+            animatePresentation()
         }
+        scheduleToastDismiss(after: duration)
+    }
+
+    func dismissToast() {
+        toastDismissTask?.cancel()
+        toastDismissTask = nil
+        isHoveringToast = false
+        onToastTap = nil
+        guard model.toast != nil else { return }
+        model.toast = nil
+        scheduleInteractiveReturnOrSync()
+        dismissPanelIfIdle()
+    }
+
+    func toastTapped() {
+        let action = onToastTap
+        dismissToast()
+        action?()
+    }
+
+    func toastHoverChanged(_ hovering: Bool) {
+        guard model.toast?.isInteractive == true else { return }
+        isHoveringToast = hovering
+        if hovering {
+            toastDismissTask?.cancel()
+        } else {
+            scheduleToastDismiss(after: NotchOverlayLayout.toastResumeAfterHoverDuration)
+        }
+    }
+
+    private func scheduleToastDismiss(after duration: TimeInterval) {
+        toastDismissTask?.cancel()
+        toastDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(0.2, duration) * 1_000_000_000))
+            guard let self, !Task.isCancelled, !self.isHoveringToast else { return }
+            self.dismissToast()
+        }
+    }
+
+    private static func inferredTone(for symbol: String) -> NotchToastTone {
+        if symbol.contains("exclamationmark") || symbol.contains("xmark") {
+            return .warning
+        }
+        if symbol.contains("checkmark") {
+            return .success
+        }
+        if symbol.contains("clipboard") || symbol.contains("sparkles") {
+            return .accent
+        }
+        return .neutral
     }
 
     // MARK: - Prompt "reunião detectada"
@@ -221,13 +426,24 @@ final class NotchOverlay {
         onDismiss: @escaping () -> Void
     ) {
         guard isEnabled else { return }
+        idleDismissTask?.cancel()
+        cancelHoverTimers()
         promptTimeoutTask?.cancel()
         onPromptRecord = onRecord
         onPromptDismiss = onDismiss
+
+        let wasVisible = panel?.isVisible == true && model.isPresented
+        presentPanel(startingCollapsed: !wasVisible)
+
         model.expanded = false
         model.prompt = NotchOverlayModel.Prompt(id: UUID(), appName: appName)
-        presentPanel()
-        applyInteractiveLayout(contentHeight: Self.promptContentHeight)
+        if wasVisible {
+            model.isPresented = true
+            syncMouseInteractivity()
+        } else {
+            animatePresentation()
+        }
+
         promptTimeoutTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: Self.promptTimeoutSeconds * 1_000_000_000)
             guard let self, !Task.isCancelled, self.model.prompt != nil else { return }
@@ -242,9 +458,7 @@ final class NotchOverlay {
         model.prompt = nil
         onPromptRecord = nil
         onPromptDismiss = nil
-        if !model.expanded {
-            applyPassiveLayout()
-        }
+        scheduleInteractiveReturnOrSync()
         dismissPanelIfIdle()
     }
 
@@ -253,8 +467,22 @@ final class NotchOverlay {
     func togglePauseTapped() { onTogglePause?() }
 
     func stopTapped() {
-        collapse()
+        collapseImmediately()
         onStop?()
+    }
+
+    func openAssistantTapped() {
+        collapseImmediately()
+        onOpenAssistant?()
+    }
+
+    func openAppTapped() {
+        collapseImmediately()
+        if model.isRecording {
+            onOpenApp?()
+        } else {
+            onProcessingOpenApp?()
+        }
     }
 
     func promptRecordTapped() {
@@ -281,7 +509,12 @@ final class NotchOverlay {
         dismiss?()
     }
 
-    // MARK: - Hover (expandir/recolher)
+    // MARK: - Hover (expandir/recolher com intenção e graça de saída)
+
+    private var canExpandOnHover: Bool {
+        guard model.prompt == nil, model.dictation == nil else { return false }
+        return model.isRecording || model.processing != nil || model.calendarEvent != nil
+    }
 
     private func startHoverMonitoring() {
         guard globalMouseMonitor == nil else { return }
@@ -296,7 +529,8 @@ final class NotchOverlay {
 
     /// Remove os monitores de mouse quando nenhum estado "hoverável" está ativo.
     private func stopHoverMonitoringIfUnneeded() {
-        guard !model.isRecording, model.calendarEvent == nil else { return }
+        guard !model.isRecording, model.processing == nil, model.calendarEvent == nil else { return }
+        cancelHoverTimers()
         if let monitor = globalMouseMonitor {
             NSEvent.removeMonitor(monitor)
             globalMouseMonitor = nil
@@ -307,89 +541,224 @@ final class NotchOverlay {
         }
     }
 
+    private func cancelHoverTimers() {
+        hoverOpenTask?.cancel()
+        hoverOpenTask = nil
+        hoverCloseTask?.cancel()
+        hoverCloseTask = nil
+    }
+
     private func handleMouseMoved() {
-        guard model.isRecording || model.calendarEvent != nil,
-              model.prompt == nil,
-              model.dictation == nil
-        else { return }
+        guard canExpandOnHover else {
+            cancelHoverTimers()
+            return
+        }
         let location = NSEvent.mouseLocation
         if model.expanded {
-            guard let frame = panel?.frame else { return }
-            if !frame.insetBy(dx: -12, dy: -12).contains(location) {
-                collapse()
+            // Usa o retângulo real do conteúdo expandido (não o canvas fixo do NSPanel).
+            let safeZone = currentExpandedRect.insetBy(dx: -10, dy: -10)
+            if safeZone.contains(location) || currentHoverTriggerRect.contains(location) {
+                hoverCloseTask?.cancel()
+                hoverCloseTask = nil
+            } else if hoverCloseTask == nil {
+                hoverCloseTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: NotchOverlayLayout.hoverCloseDelayNanoseconds)
+                    guard let self, !Task.isCancelled, self.model.expanded else { return }
+                    self.collapse()
+                }
             }
-        } else if hoverTriggerRect.contains(location) {
-            expand()
+        } else {
+            // Nunca expande enquanto o usuário está arrastando janela ou selecionando texto.
+            guard NSEvent.pressedMouseButtons == 0 else {
+                hoverOpenTask?.cancel()
+                hoverOpenTask = nil
+                return
+            }
+            if currentHoverTriggerRect.contains(location) {
+                if hoverOpenTask == nil {
+                    hoverOpenTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: NotchOverlayLayout.hoverOpenDelayNanoseconds)
+                        guard let self, !Task.isCancelled,
+                              !self.model.expanded,
+                              self.canExpandOnHover,
+                              NSEvent.pressedMouseButtons == 0,
+                              self.currentHoverTriggerRect.contains(NSEvent.mouseLocation)
+                        else { return }
+                        self.hoverOpenTask = nil
+                        self.expand()
+                    }
+                }
+            } else {
+                hoverOpenTask?.cancel()
+                hoverOpenTask = nil
+            }
         }
     }
 
-    /// Asa visível da faixa recolhida (ponto + cronômetro ≈ barras + paddings). A zona
-    /// de hover cobre só isso — usar a largura do painel expandido dispararia a
-    /// expansão bem antes do mouse chegar perto do notch.
-    private static let hoverWingWidth: CGFloat = 95
-
-    /// Faixa do notch + asas que dispara a expansão no hover.
-    private var hoverTriggerRect: NSRect {
+    private var currentHoverTriggerRect: NSRect {
         guard let metrics else { return .zero }
-        let screenFrame = metrics.screen.frame
-        let width = metrics.notchGap + 2 * Self.hoverWingWidth
-        let height = metrics.barHeight + 2
-        return NSRect(
-            x: screenFrame.midX - width / 2,
-            y: screenFrame.maxY - height,
-            width: width,
-            height: height
+        let wing = NotchOverlayLayout.symmetricWingWidth(
+            for: model.resolvedMode,
+            isExpanded: false,
+            hasLongTimer: model.hasLongTimer
+        )
+        return NotchOverlayLayout.hoverTriggerRect(
+            screenFrame: metrics.screen.frame,
+            notchGap: metrics.notchGap,
+            barHeight: metrics.barHeight,
+            wingWidth: wing
         )
     }
 
-    /// Cauda de 3 linhas + controles + paddings.
-    private static let expandedContentHeight: CGFloat = 116
-    /// Linha de texto + botões + paddings.
-    private static let promptContentHeight: CGFloat = 92
-    /// Título + horário + botões + paddings.
-    private static let calendarContentHeight: CGFloat = 104
+    private var currentExpandedRect: NSRect {
+        guard let metrics else { return .zero }
+        return NotchOverlayLayout.expandedContentRect(
+            screenFrame: metrics.screen.frame,
+            notchGap: metrics.notchGap,
+            barHeight: metrics.barHeight,
+            mode: model.resolvedMode
+        )
+    }
 
     private func expand() {
         guard !model.expanded else { return }
-        applyInteractiveLayout(
-            contentHeight: model.isRecording ? Self.expandedContentHeight : Self.calendarContentHeight
-        )
+        interactiveReturnTask?.cancel()
+        hoverCloseTask?.cancel()
+        hoverCloseTask = nil
         model.expanded = true
+        syncMouseInteractivity()
     }
 
     private func collapse() {
         guard model.expanded else { return }
+        cancelHoverTimers()
         model.expanded = false
-        // Espera a animação de recolhimento antes de voltar ao layout fantasma.
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            guard let self, !self.model.expanded, self.model.prompt == nil else { return }
-            self.applyPassiveLayout()
+        scheduleInteractiveReturnOrSync()
+    }
+
+    private func collapseImmediately() {
+        cancelHoverTimers()
+        guard model.expanded else { return }
+        model.expanded = false
+        scheduleInteractiveReturnOrSync()
+    }
+
+    private func scheduleInteractiveReturnOrSync() {
+        interactiveReturnTask?.cancel()
+        if needsInteractivePanel {
+            syncMouseInteractivity()
+            return
+        }
+        // Libera click-through imediatamente ao recolher (o painel nunca redimensiona).
+        syncMouseInteractivity()
+    }
+
+    /// Atualiza `hasLongTimer` automaticamente quando a gravação cruza 1h (mantém asas simétricas).
+    private func scheduleLongTimerCheck() {
+        longTimerCheckTask?.cancel()
+        guard model.isRecording, !model.isPaused else { return }
+        let elapsed = Date().timeIntervalSince(model.recordingStart)
+        if elapsed >= 3600 {
+            model.hasLongTimer = true
+            return
+        }
+        let remaining = max(1, 3600 - elapsed)
+        longTimerCheckTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            guard let self, !Task.isCancelled, self.model.isRecording else { return }
+            self.model.hasLongTimer = true
         }
     }
 
-    // MARK: - Painel
+    // MARK: - Painel (canvas fixo para springs 120Hz sem saltos)
 
-    private func presentPanel() {
+    private var needsInteractivePanel: Bool {
+        if model.prompt != nil { return true }
+        if model.expanded && (model.isRecording || model.processing != nil || model.calendarEvent != nil) {
+            return true
+        }
+        if model.toast?.isInteractive == true && model.dictation == nil {
+            return true
+        }
+        return false
+    }
+
+    private func presentPanel(startingCollapsed: Bool) {
+        idleDismissTask?.cancel()
         if panel == nil {
             createPanel()
+        }
+        if startingCollapsed {
+            model.isPresented = false
         }
         panel?.orderFrontRegardless()
     }
 
-    private var hasActiveContent: Bool {
-        model.isRecording || model.toast != nil || model.prompt != nil
-            || model.dictation != nil || model.calendarEvent != nil
+    /// Dispara a abertura horizontal suave saindo de dentro do recorte físico do notch.
+    private func animatePresentation() {
+        syncMouseInteractivity()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.model.hasContent else { return }
+            self.model.isPresented = true
+            self.syncMouseInteractivity()
+        }
+    }
+
+    private func syncMouseInteractivity() {
+        panel?.ignoresMouseEvents = !needsInteractivePanel
     }
 
     private func dismissPanelIfIdle() {
-        guard !hasActiveContent else { return }
-        // Espera a animação de saída da view antes de esconder a janela.
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            guard let self, !self.hasActiveContent else { return }
+        guard !model.hasContent else { return }
+        model.isPresented = false
+        syncMouseInteractivity()
+        idleDismissTask?.cancel()
+        idleDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: NotchOverlayLayout.idleHideDelayNanoseconds)
+            guard let self, !Task.isCancelled, !self.model.hasContent else { return }
             self.panel?.orderOut(nil)
         }
+    }
+
+    private func resetAndHideImmediately() {
+        cancelHoverTimers()
+        toastDismissTask?.cancel()
+        promptTimeoutTask?.cancel()
+        interactiveReturnTask?.cancel()
+        idleDismissTask?.cancel()
+        longTimerCheckTask?.cancel()
+        isHoveringToast = false
+
+        model.isPresented = false
+        model.isRecording = false
+        model.isPaused = false
+        model.expanded = false
+        model.recordingTitle = ""
+        model.liveTail = ""
+        model.hasLongTimer = false
+        model.audioLevel = 0
+        model.microphoneLevel = 0
+        model.systemAudioLevel = 0
+        model.dictation = nil
+        model.processing = nil
+        model.calendarEvent = nil
+        model.toast = nil
+        model.prompt = nil
+
+        onTogglePause = nil
+        onStop = nil
+        onOpenAssistant = nil
+        onOpenApp = nil
+        onPromptRecord = nil
+        onPromptDismiss = nil
+        onCalendarRecord = nil
+        onCalendarDismiss = nil
+        onToastTap = nil
+        onProcessingOpenApp = nil
+
+        stopHoverMonitoringIfUnneeded()
+        panel?.ignoresMouseEvents = true
+        panel?.orderOut(nil)
     }
 
     private func rebuildPanelIfVisible() {
@@ -403,80 +772,52 @@ final class NotchOverlay {
         panel = nil
         hostingView = nil
         metrics = nil
-        presentPanel()
-        if model.prompt != nil {
-            applyInteractiveLayout(contentHeight: Self.promptContentHeight)
-        } else if model.expanded {
-            applyInteractiveLayout(
-                contentHeight: model.isRecording ? Self.expandedContentHeight : Self.calendarContentHeight
-            )
-        }
+        presentPanel(startingCollapsed: false)
+        model.isPresented = model.hasContent
+        syncMouseInteractivity()
     }
 
     private struct NotchMetrics {
         let screen: NSScreen
-        /// Largura do recorte físico; 0 = tela sem notch (modo pílula).
+        /// Largura do recorte físico; 0 = tela sem notch (modo pílula flutuante).
         let notchGap: CGFloat
         let barHeight: CGFloat
     }
 
     private func currentMetrics() -> NotchMetrics? {
-        // Prefere a tela built-in com notch; senão, pílula na tela principal.
+        // Por enquanto ancora sempre na tela built-in com notch do MacBook.
+        // TODO: Futuramente suportar seguir a tela ativa em setups com monitor externo (modo pílula).
         if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) {
             let gap: CGFloat
             if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
                 gap = max(0, right.minX - left.maxX)
             } else {
-                gap = 200 // largura típica do notch como fallback
+                gap = 185 // largura típica do notch como fallback
             }
-            return NotchMetrics(screen: screen, notchGap: gap, barHeight: screen.safeAreaInsets.top)
+            let menuBarHeight = max(screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY)
+            let stripHeight = NotchOverlayLayout.notchedStripHeight(
+                safeAreaTop: screen.safeAreaInsets.top,
+                menuBarHeight: menuBarHeight
+            )
+            return NotchMetrics(screen: screen, notchGap: gap, barHeight: stripHeight)
         }
         guard let screen = NSScreen.main else { return nil }
         let menuBarHeight = max(24, screen.frame.maxY - screen.visibleFrame.maxY)
         return NotchMetrics(screen: screen, notchGap: 0, barHeight: menuBarHeight)
     }
 
-    /// Folga transparente ao redor do conteúdo interativo pra sombra não ser cortada.
-    private static let shadowMargin: CGFloat = 24
-
-    /// Layout fantasma: painel largo e click-through; a view só pinta o necessário
-    /// (evita redimensionar a janela a cada animação de toast/indicador).
-    private func applyPassiveLayout() {
-        guard let metrics, let panel else { return }
-        let width = min(metrics.notchGap + 560, metrics.screen.frame.width)
-        setFrame(width: width, height: metrics.barHeight + 44)
-        panel.ignoresMouseEvents = true
-    }
-
-    /// Layout interativo: painel do tamanho do conteúdo + folga de sombra (área
-    /// transparente maior engoliria cliques de outras janelas) e aceitando mouse.
-    private func applyInteractiveLayout(contentHeight: CGFloat) {
-        guard let metrics, let panel else { return }
-        let width = metrics.notchGap
-            + 2 * NotchOverlayView.interactiveWingWidth
-            + 2 * NotchOverlayView.topFlareRadius
-            + 2 * Self.shadowMargin
-        setFrame(width: width, height: metrics.barHeight + contentHeight + Self.shadowMargin)
-        panel.ignoresMouseEvents = false
-    }
-
-    private func setFrame(width: CGFloat, height: CGFloat) {
-        guard let metrics, let panel else { return }
-        let frame = NSRect(
-            x: metrics.screen.frame.midX - width / 2,
-            y: metrics.screen.frame.maxY - height,
-            width: width,
-            height: height
-        )
-        panel.setFrame(frame, display: true)
-    }
-
     private func createPanel() {
         guard let metrics = currentMetrics() else { return }
         self.metrics = metrics
 
-        let width = min(metrics.notchGap + 560, metrics.screen.frame.width)
-        let height = metrics.barHeight + 44
+        let width = NotchOverlayLayout.panelCanvasWidth(
+            notchGap: metrics.notchGap,
+            screenWidth: metrics.screen.frame.width
+        )
+        let height = NotchOverlayLayout.panelCanvasHeight(
+            notchGap: metrics.notchGap,
+            barHeight: metrics.barHeight
+        )
         let origin = NSPoint(
             x: metrics.screen.frame.midX - width / 2,
             y: metrics.screen.frame.maxY - height

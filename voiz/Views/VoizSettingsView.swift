@@ -105,8 +105,19 @@ struct VoizSettingsView: View {
             }
             SettingsDivider()
             SettingsRow(icon: "macbook", title: "Status no notch",
-                        subtitle: "Experimental. Gravação e avisos no topo da tela.") {
+                        subtitle: "Gravação, ditado e avisos integrados ao topo da tela.") {
                 settingsToggle($viewModel.settings.notchOverlayEnabled)
+                    .onChange(of: viewModel.settings.notchOverlayEnabled) { oldValue, newValue in
+                        NotchOverlay.shared.isEnabled = newValue
+                        if !oldValue && newValue {
+                            NotchOverlay.shared.showToast(
+                                message: String(localized: "Status no notch ativo"),
+                                symbol: "checkmark.circle.fill",
+                                tone: .success,
+                                duration: 2.6
+                            )
+                        }
+                    }
             }
             SettingsDivider()
             SettingsRow(icon: "text.cursor", title: "Inserir texto automaticamente",

@@ -305,9 +305,20 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                Toggle("Notch como status (experimental)", isOn: $viewModel.settings.notchOverlayEnabled)
+                Toggle("Status no notch", isOn: $viewModel.settings.notchOverlayEnabled)
+                    .onChange(of: viewModel.settings.notchOverlayEnabled) { oldValue, newValue in
+                        NotchOverlay.shared.isEnabled = newValue
+                        if !oldValue && newValue {
+                            NotchOverlay.shared.showToast(
+                                message: String(localized: "Status no notch ativo"),
+                                symbol: "checkmark.circle.fill",
+                                tone: .success,
+                                duration: 2.6
+                            )
+                        }
+                    }
 
-                Text("Mostra a gravação e avisos ao redor do notch do MacBook")
+                Text("Gravação, ditado e avisos integrados ao topo da tela.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
